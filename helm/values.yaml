@@ -9,3 +9,7 @@ resources:
     memory: 256Mi
 
 failurePolicy: Ignore
+
+image:
+  repository: infisical/infisical-agent-injector
+  tag: v0.1.0
