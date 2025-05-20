@@ -62,7 +62,6 @@ rules:
           - "get"
           - "watch"
           - "list"
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -117,9 +116,9 @@ subjects:
       namespace: "{{ .Release.Namespace }}"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-    name: infisical-agent-injector-role
+    name: infisical-agent-injector-secrets-pods-role
     labels:
         app.kubernetes.io/name: infisical-agent-injector
         app.kubernetes.io/instance: infisical
@@ -140,16 +139,16 @@ rules:
           - "delete"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
-    name: infisical-agent-injector-rolebinding
+    name: infisical-agent-injector-secrets-pods-binding
     labels:
         app.kubernetes.io/name: infisical-agent-injector
         app.kubernetes.io/instance: infisical
 roleRef:
     apiGroup: rbac.authorization.k8s.io
-    kind: Role
-    name: infisical-agent-injector-role
+    kind: ClusterRole
+    name: infisical-agent-injector-secrets-pods-role
 subjects:
     - kind: ServiceAccount
       name: infisical-agent-injector

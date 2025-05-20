@@ -19,7 +19,7 @@ func GenerateSelfSignedCert(namespace string) (cert []byte, key []byte, err erro
 	}
 
 	notBefore := time.Now()
-	notAfter := notBefore.Add(365 * 24 * time.Hour) // valid for 1 year, but this code is re-run on every injector startup
+	notAfter := notBefore.Add(4 * 365 * 24 * time.Hour) // valid for 4 years, but this code is re-run on every injector startup
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
