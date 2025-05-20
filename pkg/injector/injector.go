@@ -149,27 +149,38 @@ func (h *Handler) Mutate(req *admissionv1.AdmissionRequest) MutateResponse {
 		return admissionsApiError(req.UID, err)
 	}
 
-	log.Printf("[request-id=%s] Injecting into pod: %s in namespace: %s", requestId, pod.Name, pod.Namespace)
+	podName := pod.Name
+	if podName == "" {
+		// try using generateName if available (what controllers use as a name prefix)
+		if pod.GenerateName != "" {
+			podName = fmt.Sprintf("%s[pending-name]", pod.GenerateName)
+		} else {
+			// fall back to checking labels or just using a placeholder
+			podName = "[unnamed-pod]"
+		}
+	}
+
+	log.Printf("[request-id=%s] Injecting into pod: %s in namespace: %s", requestId, podName, pod.Namespace)
 
 	agent, err := agent.NewAgent(&pod, agentConfig)
 	if err != nil {
-		log.Printf("[request-id=%s] Error creating agent for pod %s in namespace %s: %s", requestId, pod.Name, pod.Namespace, err)
+		log.Printf("[request-id=%s] Error creating agent for pod %s in namespace %s: %s", requestId, podName, pod.Namespace, err)
 		return admissionsApiError(req.UID, err)
 	}
 
 	err = agent.ValidateConfigMap()
 	if err != nil {
-		log.Printf("[request-id=%s] Error validating config map for pod %s in namespace %s: %s", requestId, pod.Name, pod.Namespace, err)
+		log.Printf("[request-id=%s] Error validating config map for pod %s in namespace %s: %s", requestId, podName, pod.Namespace, err)
 		return admissionsApiError(req.UID, err)
 	}
 
 	patch, err := agent.PatchPod()
 	if err != nil {
-		log.Printf("[request-id=%s] Error patching pod %s in namespace %s: %s", requestId, pod.Name, pod.Namespace, err)
+		log.Printf("[request-id=%s] Error patching pod %s in namespace %s: %s", requestId, podName, pod.Namespace, err)
 		return admissionsApiError(req.UID, err)
 	}
 
-	log.Printf("[request-id=%s] Successfully patched pod: %s in namespace: %s", requestId, pod.Name, pod.Namespace)
+	log.Printf("[request-id=%s] Successfully patched pod: %s in namespace: %s", requestId, podName, pod.Namespace)
 
 	resp.Patch = patch
 	patchType := admissionv1.PatchTypeJSONPatch

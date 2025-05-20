@@ -34,7 +34,7 @@ const (
 
 const (
 	InitContainerName            = "infisical-agent-init"
-	InitContainerImage           = "infisical/cli:0.41.1" // todo(daniel): we might want to make this configurable in the future
+	InitContainerImage           = "infisical/cli:0.41.3" // todo(daniel): we might want to make this configurable in the future
 	InitContainerVolumeMountName = "infisical-init"
 	InitContainerVolumeMountPath = "/home/infisical"
 
