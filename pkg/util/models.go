@@ -55,7 +55,7 @@ type ConfigMap struct {
 	Infisical struct {
 		Address string `yaml:"address"`
 		Auth    struct {
-			Type   string                 `yaml:"type"` // Only kubernetes is supported for now
+			Type   string                 `yaml:"type"` // Only kubernetes and ldap-auth is supported for now
 			Config map[string]interface{} `yaml:"config"`
 		} `yaml:"auth"`
 	} `yaml:"infisical"`
