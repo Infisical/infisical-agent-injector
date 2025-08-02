@@ -11,9 +11,8 @@ import (
 )
 
 func getFilePathCreationScript(configMap util.ConfigMap) ([]string, error) {
-
+	// We use heredoc instead of echo to avoid shell escaping issues and to make sure sensitive values aren't exposed in system logs / monitoring
 	if configMap.Infisical.Auth.Type == util.KubernetesAuthType {
-
 		authConfig := util.KubernetesAuthConfig{}
 
 		if identityID, exists := configMap.Infisical.Auth.Config["identity-id"]; exists {
@@ -27,12 +26,14 @@ func getFilePathCreationScript(configMap util.ConfigMap) ([]string, error) {
 		}
 
 		return []string{
-			fmt.Sprintf("echo \"%s\" > %s/identity-id", authConfig.IdentityID, util.InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("cat > %s/identity-id << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+			authConfig.IdentityID,
+			"EOF",
+			fmt.Sprintf("chmod 600 %s/identity-id", util.InitContainerAgentConfigVolumeMountPath),
 		}, nil
 	}
 
 	if configMap.Infisical.Auth.Type == util.LdapAuthType {
-
 		authConfig := util.LdapAuthConfig{}
 
 		if identityID, exists := configMap.Infisical.Auth.Config["identity-id"]; exists {
@@ -56,9 +57,20 @@ func getFilePathCreationScript(configMap util.ConfigMap) ([]string, error) {
 		}
 
 		return []string{
-			fmt.Sprintf("echo \"%s\" > %s/username", authConfig.Username, util.InitContainerAgentConfigVolumeMountPath),
-			fmt.Sprintf("echo \"%s\" > %s/password", authConfig.Password, util.InitContainerAgentConfigVolumeMountPath),
-			fmt.Sprintf("echo \"%s\" > %s/identity-id", authConfig.IdentityID, util.InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("cat > %s/username << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+			authConfig.Username,
+			"EOF",
+			fmt.Sprintf("chmod 600 %s/username", util.InitContainerAgentConfigVolumeMountPath),
+
+			fmt.Sprintf("cat > %s/password << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+			authConfig.Password,
+			"EOF",
+			fmt.Sprintf("chmod 600 %s/password", util.InitContainerAgentConfigVolumeMountPath),
+
+			fmt.Sprintf("cat > %s/identity-id << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+			authConfig.IdentityID,
+			"EOF",
+			fmt.Sprintf("chmod 600 %s/identity-id", util.InitContainerAgentConfigVolumeMountPath),
 		}, nil
 	}
 
