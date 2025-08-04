@@ -104,8 +104,8 @@ func (a *Agent) ValidateConfigMap() error {
 		return fmt.Errorf("auth type is required")
 	}
 
-	if a.configMap.Infisical.Auth.Type != util.KubernetesAuthType {
-		return fmt.Errorf("auth type %s not supported. please use %s", a.configMap.Infisical.Auth.Type, util.KubernetesAuthType)
+	if a.configMap.Infisical.Auth.Type != util.KubernetesAuthType && a.configMap.Infisical.Auth.Type != util.LdapAuthType {
+		return fmt.Errorf("auth type %s not supported. please use %s or %s", a.configMap.Infisical.Auth.Type, util.KubernetesAuthType, util.LdapAuthType)
 	}
 
 	// redundant if statement check, but will make sense when we add more authentication methods

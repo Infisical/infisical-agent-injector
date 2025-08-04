@@ -10,6 +10,73 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+func getFilePathCreationScript(configMap util.ConfigMap) ([]string, error) {
+	// We use heredoc instead of echo to avoid shell escaping issues and to make sure sensitive values aren't exposed in system logs / monitoring
+	if configMap.Infisical.Auth.Type == util.KubernetesAuthType {
+		authConfig := util.KubernetesAuthConfig{}
+
+		if identityID, exists := configMap.Infisical.Auth.Config["identity-id"]; exists {
+			if id, ok := identityID.(string); ok {
+				authConfig.IdentityID = id
+			}
+		}
+
+		if authConfig.IdentityID == "" {
+			return []string{}, fmt.Errorf("identity-id is required for kubernetes auth")
+		}
+
+		return []string{
+			fmt.Sprintf("cat > %s/identity-id << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+			authConfig.IdentityID,
+			"EOF",
+			fmt.Sprintf("chmod 600 %s/identity-id", util.InitContainerAgentConfigVolumeMountPath),
+		}, nil
+	}
+
+	if configMap.Infisical.Auth.Type == util.LdapAuthType {
+		authConfig := util.LdapAuthConfig{}
+
+		if identityID, exists := configMap.Infisical.Auth.Config["identity-id"]; exists {
+			if id, ok := identityID.(string); ok {
+				authConfig.IdentityID = id
+			}
+		}
+		if username, exists := configMap.Infisical.Auth.Config["username"]; exists {
+			if username, ok := username.(string); ok {
+				authConfig.Username = username
+			}
+		}
+		if password, exists := configMap.Infisical.Auth.Config["password"]; exists {
+			if password, ok := password.(string); ok {
+				authConfig.Password = password
+			}
+		}
+
+		if authConfig.IdentityID == "" || authConfig.Username == "" || authConfig.Password == "" {
+			return []string{}, fmt.Errorf("identity-id, username, and password are required for ldap auth")
+		}
+
+		return []string{
+			fmt.Sprintf("cat > %s/username << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+			authConfig.Username,
+			"EOF",
+			fmt.Sprintf("chmod 600 %s/username", util.InitContainerAgentConfigVolumeMountPath),
+
+			fmt.Sprintf("cat > %s/password << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+			authConfig.Password,
+			"EOF",
+			fmt.Sprintf("chmod 600 %s/password", util.InitContainerAgentConfigVolumeMountPath),
+
+			fmt.Sprintf("cat > %s/identity-id << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+			authConfig.IdentityID,
+			"EOF",
+			fmt.Sprintf("chmod 600 %s/identity-id", util.InitContainerAgentConfigVolumeMountPath),
+		}, nil
+	}
+
+	return []string{}, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
+}
+
 func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 	volumeMounts := []corev1.VolumeMount{
 		{
@@ -31,11 +98,19 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		ReadOnly:  false, // Changed to false to allow writing
 	})
 
-	parsedAgentConfig := util.BuildAgentConfigFromConfigMap(a.configMap, a.injectMode)
+	parsedAgentConfig, err := util.BuildAgentConfigFromConfigMap(a.configMap, a.injectMode)
+	if err != nil {
+		return corev1.Container{}, fmt.Errorf("failed to build agent config: %w", err)
+	}
 
 	agentConfigYaml, err := yaml.Marshal(parsedAgentConfig)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to marshal yaml agent config: %w", err)
+	}
+
+	filePathCreationScript, err := getFilePathCreationScript(*a.configMap)
+	if err != nil {
+		return corev1.Container{}, fmt.Errorf("failed to get file path creation script: %w", err)
 	}
 
 	script := []string{
@@ -49,12 +124,16 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		"",
 		"# Write identity id to volume",
 		fmt.Sprintf("mkdir -p %s", util.InitContainerAgentConfigVolumeMountPath),
-		fmt.Sprintf("echo \"%s\" > %s/identity-id", a.configMap.Infisical.Auth.Config.IdentityID, util.InitContainerAgentConfigVolumeMountPath),
+	}
+
+	script = append(script, filePathCreationScript...)
+
+	script = append(script, []string{
 		"",
 		"# Run the agent",
 		"echo \"Starting infisical agent...\"",
 		fmt.Sprintf("timeout 180s infisical agent --config %s/agent-config.yaml || { echo \"Agent failed with exit code $?\"; exit 1; }", util.InitContainerAgentConfigVolumeMountPath),
-	}
+	}...)
 
 	resources, err := createResources()
 	if err != nil {

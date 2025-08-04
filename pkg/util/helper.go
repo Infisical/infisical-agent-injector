@@ -1,8 +1,28 @@
 package util
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
-func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string) *AgentConfig {
+func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string) (*AgentConfig, error) {
+
+	var authConfig map[string]interface{} = map[string]interface{}{}
+
+	if configMap.Infisical.Auth.Type == KubernetesAuthType {
+		authConfig = map[string]interface{}{
+			// hacky. but we need to get around the file-based identity ID storage somehow
+			"identity-id": "/home/infisical/config/identity-id",
+		}
+	} else if configMap.Infisical.Auth.Type == LdapAuthType {
+		authConfig = map[string]interface{}{
+			"identity-id": "/home/infisical/config/identity-id",
+			"username":    "/home/infisical/config/username",
+			"password":    "/home/infisical/config/password",
+		}
+	} else {
+		return nil, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
+	}
 
 	agentConfig := &AgentConfig{
 		Infisical: InfisicalConfig{
@@ -11,11 +31,8 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string) *Age
 		},
 		Templates: configMap.Templates,
 		Auth: AuthConfig{
-			Type: configMap.Infisical.Auth.Type,
-			Config: map[string]interface{}{
-				// hacky. but we need to get around the file-based identity ID storage somehow
-				"identity-id": "/home/infisical/config/identity-id",
-			},
+			Type:   configMap.Infisical.Auth.Type,
+			Config: authConfig,
 		},
 		Sinks: []Sink{
 			{
@@ -27,7 +44,7 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string) *Age
 		},
 	}
 
-	return agentConfig
+	return agentConfig, nil
 }
 
 func PrettyPrintJSON(data []byte) string {

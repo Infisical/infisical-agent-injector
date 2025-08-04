@@ -41,14 +41,22 @@ type AgentConfig struct {
 	Templates []Template      `yaml:"templates"`
 }
 
+type KubernetesAuthConfig struct {
+	IdentityID string `yaml:"identity-id"`
+}
+
+type LdapAuthConfig struct {
+	Username   string `yaml:"username"`
+	Password   string `yaml:"password"`
+	IdentityID string `yaml:"identity-id"`
+}
+
 type ConfigMap struct {
 	Infisical struct {
 		Address string `yaml:"address"`
 		Auth    struct {
-			Type   string `yaml:"type"` // Only kubernetes is supported for now
-			Config struct {
-				IdentityID string `yaml:"identity-id"`
-			} `yaml:"config"`
+			Type   string                 `yaml:"type"` // Only kubernetes and ldap-auth is supported for now
+			Config map[string]interface{} `yaml:"config"`
 		} `yaml:"auth"`
 	} `yaml:"infisical"`
 	Templates []Template `yaml:"templates"`
