@@ -185,12 +185,6 @@ func (a *Agent) PatchPod() ([]byte, error) {
 		return nil, fmt.Errorf("unknown inject mode: %s", a.injectMode)
 	}
 
-	log.Printf("required volume name: %s\n", requiredVolumeName)
-	log.Printf("required volume name: %s\n", requiredVolumeName)
-	log.Printf("required volume name: %s\n", requiredVolumeName)
-	log.Printf("required volume name: %s\n", requiredVolumeName)
-	log.Printf("required volume name: %s\n", requiredVolumeName)
-
 	// 2. add the user-provided agent config to a volume accessible from the init container
 	requiredVolumes := []corev1.Volume{
 		// Agent config volume
