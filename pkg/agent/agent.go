@@ -72,6 +72,20 @@ func (a *Agent) ContainerVolumeMounts() []corev1.VolumeMount {
 			name = "infisical-secrets"
 		}
 
+		// check if the volume mounts already have a path that matches the destination path
+		alreadyExists := false
+		for _, volumeMount := range volumeMounts {
+			if volumeMount.MountPath == destinationPath {
+				alreadyExists = true
+				break
+			}
+		}
+
+		if alreadyExists {
+			log.Printf("volume mount %s already exists at %s. skipping creation.", name, destinationPath)
+			continue
+		}
+
 		log.Printf("adding volume mount %s to %s", name, destinationPath)
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
@@ -95,8 +109,8 @@ func (a *Agent) ContainerAgentConfigVolume() corev1.Volume {
 func (a *Agent) ValidateConfigMap() error {
 
 	// currnetly only init mode is supported
-	if a.injectMode != util.InjectModeInit {
-		return fmt.Errorf("inject mode %s not supported. please use %s", a.injectMode, util.InjectModeInit)
+	if a.injectMode != util.InjectModeInit && a.injectMode != util.InjectModeSidecar {
+		return fmt.Errorf("inject mode %s not supported. please use %s or %s", a.injectMode, util.InjectModeInit, util.InjectModeSidecar)
 	}
 
 	// check that the config map has a valid auth config
@@ -161,6 +175,22 @@ func (a *Agent) PatchPod() ([]byte, error) {
 			fmt.Sprintf("/spec/containers/%d/volumeMounts", i))...)
 	}
 
+	requiredVolumeName := ""
+
+	if a.injectMode == util.InjectModeInit {
+		requiredVolumeName = util.InitContainerVolumeMountName
+	} else if a.injectMode == util.InjectModeSidecar {
+		requiredVolumeName = util.SidecarContainerVolumeMountName
+	} else {
+		return nil, fmt.Errorf("unknown inject mode: %s", a.injectMode)
+	}
+
+	log.Printf("required volume name: %s\n", requiredVolumeName)
+	log.Printf("required volume name: %s\n", requiredVolumeName)
+	log.Printf("required volume name: %s\n", requiredVolumeName)
+	log.Printf("required volume name: %s\n", requiredVolumeName)
+	log.Printf("required volume name: %s\n", requiredVolumeName)
+
 	// 2. add the user-provided agent config to a volume accessible from the init container
 	requiredVolumes := []corev1.Volume{
 		// Agent config volume
@@ -168,7 +198,7 @@ func (a *Agent) PatchPod() ([]byte, error) {
 
 		// Init volume
 		{
-			Name: util.InitContainerVolumeMountName,
+			Name: requiredVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
@@ -191,45 +221,62 @@ func (a *Agent) PatchPod() ([]byte, error) {
 		})
 	}
 
+	injectMode := a.injectMode
+
 	podPatches = append(podPatches, addVolumes(
 		a.pod.Spec.Volumes,
 		requiredVolumes,
 		"/spec/volumes")...)
 
-	container, err := a.ContainerInitSidecar()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(a.pod.Spec.InitContainers) != 0 {
-		podPatches = append(podPatches, removeContainers("/spec/initContainers")...)
-	}
-
-	containers := append([]corev1.Container{container}, a.pod.Spec.InitContainers...)
-
-	podPatches = append(podPatches, addContainers(
-		[]corev1.Container{},
-		containers,
-		"/spec/initContainers")...)
-
-	for i, container := range containers {
-		if container.Name == util.InitContainerName {
-			continue
+	if injectMode == util.InjectModeInit {
+		container, err := a.ContainerInitSidecar()
+		if err != nil {
+			return nil, err
 		}
-		podPatches = append(podPatches, addVolumeMounts(
-			container.VolumeMounts,
-			a.ContainerVolumeMounts(),
-			fmt.Sprintf("/spec/initContainers/%d/volumeMounts", i))...)
+
+		if len(a.pod.Spec.InitContainers) != 0 {
+			podPatches = append(podPatches, removeContainers("/spec/initContainers")...)
+		}
+
+		containers := append([]corev1.Container{container}, a.pod.Spec.InitContainers...)
+
+		podPatches = append(podPatches, addContainers(
+			[]corev1.Container{},
+			containers,
+			"/spec/initContainers")...)
+
+		for i, container := range containers {
+			if container.Name == util.InitContainerName {
+				continue
+			}
+			podPatches = append(podPatches, addVolumeMounts(
+				container.VolumeMounts,
+				a.ContainerVolumeMounts(),
+				fmt.Sprintf("/spec/initContainers/%d/volumeMounts", i))...)
+		}
+	} else if injectMode == util.InjectModeSidecar {
+		container, err := a.ContainerSidecar()
+		if err != nil {
+			return nil, err
+		}
+		podPatches = append(podPatches, addContainers(
+			a.pod.Spec.Containers,
+			[]corev1.Container{container},
+			"/spec/containers")...)
 	}
 
 	podPatches = append(podPatches, updatePodAnnotations(
 		a.pod.Annotations,
 		map[string]string{util.AnnotationAgentStatus: "injected"})...)
 
-	// Generate the patch
 	if len(podPatches) > 0 {
 		return json.Marshal(podPatches)
 	}
 	return nil, nil
 
+}
+
+func (a *Agent) createLifecycle() corev1.Lifecycle {
+	// todo: add logic for cleaning up access token on pod shutdown
+	return corev1.Lifecycle{}
 }

@@ -50,18 +50,18 @@ func addResourcesWithPath[T any](existing []T, newItems []T, basePath string) js
 	return patches
 }
 
-func addVolumes(target, volumes []corev1.Volume, base string) jsonpatch.Patch {
+func addVolumes(target []corev1.Volume, volumes []corev1.Volume, base string) jsonpatch.Patch {
 	return addResourcesWithPath(target, volumes, base)
 }
 
-func addVolumeMounts(target, mounts []corev1.VolumeMount, base string) jsonpatch.Patch {
+func addVolumeMounts(target []corev1.VolumeMount, mounts []corev1.VolumeMount, base string) jsonpatch.Patch {
 	return addResourcesWithPath(target, mounts, base)
 }
 func removeContainers(path string) jsonpatch.Patch {
 	return []jsonpatch.Operation{RemoveOp(path)}
 }
 
-func addContainers(target, containers []corev1.Container, base string) jsonpatch.Patch {
+func addContainers(target []corev1.Container, containers []corev1.Container, base string) jsonpatch.Patch {
 	if len(target) == 0 && len(containers) > 0 {
 		return []jsonpatch.Operation{AddOp(base, containers)}
 	}
@@ -73,7 +73,7 @@ func addContainers(target, containers []corev1.Container, base string) jsonpatch
 	return patches
 }
 
-func updatePodAnnotations(target, annotations map[string]string) jsonpatch.Patch {
+func updatePodAnnotations(target map[string]string, annotations map[string]string) jsonpatch.Patch {
 	var result jsonpatch.Patch
 	if len(target) == 0 {
 		return []jsonpatch.Operation{AddOp("/metadata/annotations", annotations)}
