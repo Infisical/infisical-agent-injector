@@ -30,7 +30,7 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string) (*Ag
 	agentConfig := &AgentConfig{
 		Infisical: InfisicalConfig{
 			Address:       configMap.Infisical.Address,
-			ExitAfterAuth: injectMode == InjectModeInit, // Currently only init is supported, but we can expand to sidecar later
+			ExitAfterAuth: injectMode == InjectModeInit,
 		},
 		Templates: configMap.Templates,
 		Auth: AuthConfig{
