@@ -25,8 +25,8 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts()...)
 
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      util.InitContainerAgentConfigVolumeName,
-		MountPath: util.InitContainerAgentConfigVolumeMountPath,
+		Name:      util.ContainerAgentConfigVolumeName,
+		MountPath: util.ContainerAgentConfigVolumeMountPath,
 		ReadOnly:  false, // Changed to false to allow writing
 	})
 
@@ -50,12 +50,12 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		"set -ex", // -x to trace command execution
 		"",
 		"# Write config file to volume",
-		fmt.Sprintf("cat > %s/agent-config.yaml << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+		fmt.Sprintf("cat > %s/agent-config.yaml << 'EOF'", util.ContainerAgentConfigVolumeMountPath),
 		string(agentConfigYaml),
 		"EOF",
 		"",
 		"# Write identity id to volume",
-		fmt.Sprintf("mkdir -p %s", util.InitContainerAgentConfigVolumeMountPath),
+		fmt.Sprintf("mkdir -p %s", util.ContainerAgentConfigVolumeMountPath),
 	}
 
 	script = append(script, filePathCreationScript...)
@@ -64,7 +64,7 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		"",
 		"# Run the agent",
 		"echo \"Starting infisical agent...\"",
-		fmt.Sprintf("timeout 180s infisical agent --config %s/agent-config.yaml || { echo \"Agent failed with exit code $?\"; exit 1; }", util.InitContainerAgentConfigVolumeMountPath),
+		fmt.Sprintf("timeout 180s infisical agent --config %s/agent-config.yaml || { echo \"Agent failed with exit code $?\"; exit 1; }", util.ContainerAgentConfigVolumeMountPath),
 	}...)
 
 	resources, err := util.CreateDefaultResources()

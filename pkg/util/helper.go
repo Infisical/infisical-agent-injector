@@ -83,10 +83,10 @@ func GetFilePathCreationScript(configMap ConfigMap) ([]string, error) {
 		}
 
 		return []string{
-			fmt.Sprintf("cat > %s/identity-id << 'EOF'", InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("cat > %s/identity-id << 'EOF'", ContainerAgentConfigVolumeMountPath),
 			authConfig.IdentityID,
 			"EOF",
-			fmt.Sprintf("chmod 600 %s/identity-id", InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("chmod 600 %s/identity-id", ContainerAgentConfigVolumeMountPath),
 		}, nil
 	}
 
@@ -114,20 +114,20 @@ func GetFilePathCreationScript(configMap ConfigMap) ([]string, error) {
 		}
 
 		return []string{
-			fmt.Sprintf("cat > %s/username << 'EOF'", InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("cat > %s/username << 'EOF'", ContainerAgentConfigVolumeMountPath),
 			authConfig.Username,
 			"EOF",
-			fmt.Sprintf("chmod 600 %s/username", InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("chmod 600 %s/username", ContainerAgentConfigVolumeMountPath),
 
-			fmt.Sprintf("cat > %s/password << 'EOF'", InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("cat > %s/password << 'EOF'", ContainerAgentConfigVolumeMountPath),
 			authConfig.Password,
 			"EOF",
-			fmt.Sprintf("chmod 600 %s/password", InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("chmod 600 %s/password", ContainerAgentConfigVolumeMountPath),
 
-			fmt.Sprintf("cat > %s/identity-id << 'EOF'", InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("cat > %s/identity-id << 'EOF'", ContainerAgentConfigVolumeMountPath),
 			authConfig.IdentityID,
 			"EOF",
-			fmt.Sprintf("chmod 600 %s/identity-id", InitContainerAgentConfigVolumeMountPath),
+			fmt.Sprintf("chmod 600 %s/identity-id", ContainerAgentConfigVolumeMountPath),
 		}, nil
 	}
 

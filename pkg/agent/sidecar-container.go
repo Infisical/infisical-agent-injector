@@ -25,8 +25,8 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts()...)
 
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      util.InitContainerAgentConfigVolumeName,
-		MountPath: util.InitContainerAgentConfigVolumeMountPath,
+		Name:      util.ContainerAgentConfigVolumeName,
+		MountPath: util.ContainerAgentConfigVolumeMountPath,
 		ReadOnly:  false,
 	})
 
@@ -55,12 +55,12 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 		"set -ex",
 		"",
 		"# Write config file to volume",
-		fmt.Sprintf("cat > %s/agent-config.yaml << 'EOF'", util.InitContainerAgentConfigVolumeMountPath),
+		fmt.Sprintf("cat > %s/agent-config.yaml << 'EOF'", util.ContainerAgentConfigVolumeMountPath),
 		string(agentConfigYaml),
 		"EOF",
 		"",
 		"# Write identity id to volume",
-		fmt.Sprintf("mkdir -p %s", util.InitContainerAgentConfigVolumeMountPath),
+		fmt.Sprintf("mkdir -p %s", util.ContainerAgentConfigVolumeMountPath),
 	}
 
 	script = append(script, filePathCreationScript...)
@@ -69,7 +69,7 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 		"",
 		"# Run the agent",
 		"echo \"Starting infisical agent...\"",
-		fmt.Sprintf("infisical agent --config %s/agent-config.yaml", util.InitContainerAgentConfigVolumeMountPath),
+		fmt.Sprintf("infisical agent --config %s/agent-config.yaml", util.ContainerAgentConfigVolumeMountPath),
 	}...)
 
 	lifecycle := a.createLifecycle()

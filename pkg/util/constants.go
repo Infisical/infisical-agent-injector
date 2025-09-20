@@ -43,8 +43,8 @@ const (
 	SidecarContainerVolumeMountName = "infisical-sidecar"
 	SidecarContainerVolumeMountPath = "/home/infisical"
 
-	InitContainerAgentConfigVolumeName      = "infisical-agent-config"
-	InitContainerAgentConfigVolumeMountPath = "/home/infisical/config"
+	ContainerAgentConfigVolumeName      = "infisical-agent-config"
+	ContainerAgentConfigVolumeMountPath = "/home/infisical/config"
 )
 
 var (

@@ -99,7 +99,7 @@ func (a *Agent) ContainerVolumeMounts() []corev1.VolumeMount {
 
 func (a *Agent) ContainerAgentConfigVolume() corev1.Volume {
 	return corev1.Volume{
-		Name: util.InitContainerAgentConfigVolumeName,
+		Name: util.ContainerAgentConfigVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
