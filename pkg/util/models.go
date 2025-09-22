@@ -13,10 +13,6 @@ type Template struct {
 
 	Config struct { // Configurations for the template
 		PollingInterval string `yaml:"polling-interval"` // How often to poll for changes in the secret
-		Execute         struct {
-			Command string `yaml:"command"` // Command to execute once the template has been rendered
-			Timeout int64  `yaml:"timeout"` // Timeout for the command
-		} `yaml:"execute"` // Command to execute once the template has been rendered
 	} `yaml:"config"`
 }
 

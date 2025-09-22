@@ -9,17 +9,17 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
+func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      util.InitContainerVolumeMountName,
-			MountPath: util.InitContainerVolumeMountPath,
-			ReadOnly:  false,
-		},
 		{
 			Name:      a.serviceAccountTokenVolume.Name,
 			MountPath: a.serviceAccountTokenVolume.MountPath,
 			ReadOnly:  true,
+		},
+		{
+			Name:      util.SidecarContainerVolumeMountName,
+			MountPath: util.SidecarContainerVolumeMountPath,
+			ReadOnly:  false,
 		},
 	}
 	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts()...)
@@ -27,7 +27,7 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      util.ContainerAgentConfigVolumeName,
 		MountPath: util.ContainerAgentConfigVolumeMountPath,
-		ReadOnly:  false, // Changed to false to allow writing
+		ReadOnly:  false,
 	})
 
 	parsedAgentConfig, err := util.BuildAgentConfigFromConfigMap(a.configMap, a.injectMode)
@@ -45,9 +45,14 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		return corev1.Container{}, fmt.Errorf("failed to get file path creation script: %w", err)
 	}
 
+	resources, err := util.CreateDefaultResources()
+	if err != nil {
+		return corev1.Container{}, err
+	}
+
 	script := []string{
 		"#!/bin/sh",
-		"set -ex", // -x to trace command execution
+		"set -ex",
 		"",
 		"# Write config file to volume",
 		fmt.Sprintf("cat > %s/agent-config.yaml << 'EOF'", util.ContainerAgentConfigVolumeMountPath),
@@ -64,24 +69,20 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		"",
 		"# Run the agent",
 		"echo \"Starting infisical agent...\"",
-		fmt.Sprintf("timeout 180s infisical agent --config %s/agent-config.yaml || { echo \"Agent failed with exit code $?\"; exit 1; }", util.ContainerAgentConfigVolumeMountPath),
+		fmt.Sprintf("infisical agent --config %s/agent-config.yaml", util.ContainerAgentConfigVolumeMountPath),
 	}...)
 
-	resources, err := util.CreateDefaultResources()
-	if err != nil {
-		return corev1.Container{}, fmt.Errorf("failed to create resources: %w", err)
-	}
+	lifecycle := a.createLifecycle()
 
 	newContainer := corev1.Container{
-		Name:      util.InitContainerName,
-		Image:     util.ContainerImage,
-		Resources: resources,
-
+		Name:         "infisical-agent",
+		Image:        util.ContainerImage,
+		Resources:    resources,
 		VolumeMounts: volumeMounts,
-		Command:      []string{"/bin/sh", "-c"},
+		Lifecycle:    &lifecycle,
+		Command:      []string{"/bin/sh", "-ec"},
 		Args:         []string{strings.Join(script, "\n")},
 	}
 
 	return newContainer, nil
-
 }
