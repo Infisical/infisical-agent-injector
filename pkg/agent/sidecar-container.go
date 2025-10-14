@@ -2,86 +2,60 @@ package agent
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Infisical/infisical-agent-injector/pkg/util"
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 )
 
 func (a *Agent) ContainerSidecar() (corev1.Container, error) {
-	volumeMounts := []corev1.VolumeMount{
-		{
+	agentConfigVolumeMountPath := util.LinuxContainerAgentConfigVolumeMountPath
+	if a.isWindows {
+		agentConfigVolumeMountPath = util.WindowsContainerAgentConfigVolumeMountPath
+	}
+
+	volumeMounts := []corev1.VolumeMount{}
+
+	if !a.isWindows {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      a.serviceAccountTokenVolume.Name,
 			MountPath: a.serviceAccountTokenVolume.MountPath,
 			ReadOnly:  true,
-		},
-		{
-			Name:      util.SidecarContainerVolumeMountName,
-			MountPath: util.SidecarContainerVolumeMountPath,
-			ReadOnly:  false,
-		},
+		})
 	}
-	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts()...)
+
+	// This will add the secret volume mounts
+	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
 
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      util.ContainerAgentConfigVolumeName,
-		MountPath: util.ContainerAgentConfigVolumeMountPath,
+		MountPath: agentConfigVolumeMountPath,
 		ReadOnly:  false,
 	})
 
-	parsedAgentConfig, err := util.BuildAgentConfigFromConfigMap(a.configMap, a.injectMode)
+	script, err := util.BuildAgentScript(*a.configMap, a.injectMode, a.isWindows)
 	if err != nil {
-		return corev1.Container{}, fmt.Errorf("failed to build agent config: %w", err)
-	}
-
-	agentConfigYaml, err := yaml.Marshal(parsedAgentConfig)
-	if err != nil {
-		return corev1.Container{}, fmt.Errorf("failed to marshal yaml agent config: %w", err)
-	}
-
-	filePathCreationScript, err := util.GetFilePathCreationScript(*a.configMap)
-	if err != nil {
-		return corev1.Container{}, fmt.Errorf("failed to get file path creation script: %w", err)
+		return corev1.Container{}, fmt.Errorf("failed to build agent script: %w", err)
 	}
 
 	resources, err := util.CreateDefaultResources()
 	if err != nil {
 		return corev1.Container{}, err
 	}
-
-	script := []string{
-		"#!/bin/sh",
-		"set -ex",
-		"",
-		"# Write config file to volume",
-		fmt.Sprintf("cat > %s/agent-config.yaml << 'EOF'", util.ContainerAgentConfigVolumeMountPath),
-		string(agentConfigYaml),
-		"EOF",
-		"",
-		"# Write identity id to volume",
-		fmt.Sprintf("mkdir -p %s", util.ContainerAgentConfigVolumeMountPath),
-	}
-
-	script = append(script, filePathCreationScript...)
-
-	script = append(script, []string{
-		"",
-		"# Run the agent",
-		"echo \"Starting infisical agent...\"",
-		fmt.Sprintf("infisical agent --config %s/agent-config.yaml", util.ContainerAgentConfigVolumeMountPath),
-	}...)
-
 	lifecycle := a.createLifecycle()
+
+	command := []string{"/bin/sh", "-ec"}
+	if a.isWindows {
+		command = []string{"pwsh.exe", "-Command"}
+	}
 
 	newContainer := corev1.Container{
 		Name:         "infisical-agent",
-		Image:        util.ContainerImage,
+		Image:        a.agentImage,
 		Resources:    resources,
 		VolumeMounts: volumeMounts,
 		Lifecycle:    &lifecycle,
-		Command:      []string{"/bin/sh", "-ec"},
-		Args:         []string{strings.Join(script, "\n")},
+		Command:      command,
+		Args:         []string{script},
 	}
 
 	return newContainer, nil

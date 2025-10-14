@@ -57,3 +57,8 @@ type ConfigMap struct {
 	} `yaml:"infisical"`
 	Templates []Template `yaml:"templates"`
 }
+
+type BuildAgentScriptOptions struct {
+	AgentConfigYaml []byte
+	ConfigMap       ConfigMap
+}

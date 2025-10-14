@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 
 	"github.com/Infisical/infisical-agent-injector/pkg/util"
@@ -16,6 +17,8 @@ type Agent struct {
 	configMap                 *util.ConfigMap
 	serviceAccountTokenVolume *ServiceAccountTokenVolume
 	injectMode                string
+	agentImage                string
+	isWindows                 bool
 }
 
 func NewAgent(pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
@@ -48,22 +51,31 @@ func NewAgent(pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
 		}
 	}
 
+	agentImage := util.LinuxContainerImage
+	isWindows := false
+
+	if util.IsWindowsPod(pod) {
+		agentImage = util.WindowsContainerImage
+		isWindows = true
+	}
+
 	return &Agent{
 		pod:                       pod,
 		configMap:                 configMap,
 		serviceAccountTokenVolume: serviceAccountTokenVolume,
 		injectMode:                injectMode,
+		agentImage:                agentImage,
+		isWindows:                 isWindows,
 	}, nil
 }
 
-func (a *Agent) ContainerVolumeMounts() []corev1.VolumeMount {
+func (a *Agent) ContainerVolumeMounts(existingMounts []corev1.VolumeMount) []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
 	templateCount := len(a.configMap.Templates)
 
 	for i, template := range a.configMap.Templates {
-
-		destinationPath := strings.Join(strings.Split(template.DestinationPath, "/")[:len(strings.Split(template.DestinationPath, "/"))-1], "/")
+		destinationPath := filepath.Dir(template.DestinationPath)
 
 		var name string
 		if templateCount > 1 {
@@ -72,12 +84,21 @@ func (a *Agent) ContainerVolumeMounts() []corev1.VolumeMount {
 			name = "infisical-secrets"
 		}
 
-		// check if the volume mounts already have a path that matches the destination path
 		alreadyExists := false
-		for _, volumeMount := range volumeMounts {
+
+		for _, volumeMount := range existingMounts {
 			if volumeMount.MountPath == destinationPath {
 				alreadyExists = true
 				break
+			}
+		}
+
+		if !alreadyExists {
+			for _, volumeMount := range volumeMounts {
+				if volumeMount.MountPath == destinationPath {
+					alreadyExists = true
+					break
+				}
 			}
 		}
 
@@ -148,15 +169,29 @@ func (a *Agent) ValidateConfigMap() error {
 			return fmt.Errorf("template destination path is required")
 		}
 
-		// check if the path starts with a /, if it doesn't throw
-		if !strings.HasPrefix(template.DestinationPath, "/") {
-			return fmt.Errorf("template destination path must be absolute and start with a slash (e.g. /path/to/destination/secret-file)")
-		}
+		if !a.isWindows {
 
-		// ensure that the destination path is a folder
-		slashCount := strings.Count(template.DestinationPath, "/")
-		if slashCount < 2 {
-			return fmt.Errorf("template destination path must be a folder (e.g. /path/to/destination/secret-file)")
+			// check if the path starts with a /, if it doesn't throw
+			if !strings.HasPrefix(template.DestinationPath, "/") {
+				return fmt.Errorf("template destination path must be absolute and start with a slash (e.g. /path/to/destination/secret-file)")
+			}
+
+			// ensure that the destination path is a folder
+			slashCount := strings.Count(template.DestinationPath, "/")
+			if slashCount < 2 {
+				return fmt.Errorf("template destination path must be a folder (e.g. /path/to/destination/secret-file)")
+			}
+		} else {
+			// validates drive letter paths and UNC paths
+			if !filepath.IsAbs(template.DestinationPath) {
+				return fmt.Errorf("template destination path must be an absolute path (e.g. C:\\path\\to\\destination\\secret-file)")
+			}
+
+			// ensure that the destination path is a folder
+			slashCount := strings.Count(template.DestinationPath, "\\")
+			if slashCount < 2 {
+				return fmt.Errorf("template destination path must be a folder (e.g. C:\\path\\to\\destination\\secret-file)")
+			}
 		}
 	}
 
@@ -171,7 +206,7 @@ func (a *Agent) PatchPod() ([]byte, error) {
 	for i, container := range a.pod.Spec.Containers {
 		podPatches = append(podPatches, addVolumeMounts(
 			container.VolumeMounts,
-			a.ContainerVolumeMounts(),
+			a.ContainerVolumeMounts(container.VolumeMounts),
 			fmt.Sprintf("/spec/containers/%d/volumeMounts", i))...)
 	}
 
@@ -215,14 +250,12 @@ func (a *Agent) PatchPod() ([]byte, error) {
 		})
 	}
 
-	injectMode := a.injectMode
-
 	podPatches = append(podPatches, addVolumes(
 		a.pod.Spec.Volumes,
 		requiredVolumes,
 		"/spec/volumes")...)
 
-	if injectMode == util.InjectModeInit {
+	if a.injectMode == util.InjectModeInit {
 		container, err := a.ContainerInitSidecar()
 		if err != nil {
 			return nil, err
@@ -245,10 +278,10 @@ func (a *Agent) PatchPod() ([]byte, error) {
 			}
 			podPatches = append(podPatches, addVolumeMounts(
 				container.VolumeMounts,
-				a.ContainerVolumeMounts(),
+				a.ContainerVolumeMounts(container.VolumeMounts),
 				fmt.Sprintf("/spec/initContainers/%d/volumeMounts", i))...)
 		}
-	} else if injectMode == util.InjectModeSidecar {
+	} else if a.injectMode == util.InjectModeSidecar {
 		container, err := a.ContainerSidecar()
 		if err != nil {
 			return nil, err
