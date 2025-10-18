@@ -58,7 +58,17 @@ type ConfigMap struct {
 	Templates []Template `yaml:"templates"`
 }
 
-type BuildAgentScriptOptions struct {
-	AgentConfigYaml []byte
-	ConfigMap       ConfigMap
+type StartupScriptTemplateData struct {
+	ConfigPath      string
+	AgentConfigYaml string
+	InjectMode      string
+	TimeoutSeconds  int
+	Auth            StartupScriptAuth
+}
+
+type StartupScriptAuth struct {
+	Type       string
+	IdentityID string
+	Username   string
+	Password   string
 }

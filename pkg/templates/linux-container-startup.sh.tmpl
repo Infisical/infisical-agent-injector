@@ -1,0 +1,38 @@
+#!/bin/sh
+set -ex
+
+cat > {{.ConfigPath}}/agent-config.yaml << 'EOF'
+{{.AgentConfigYaml}}
+EOF
+
+mkdir -p {{.ConfigPath}}
+
+{{if eq .Auth.Type "kubernetes"}}
+cat > {{.ConfigPath}}/identity-id << 'EOF'
+{{.Auth.IdentityID}}
+EOF
+chmod 600 {{.ConfigPath}}/identity-id
+{{else if eq .Auth.Type "ldap-auth"}}
+cat > {{.ConfigPath}}/username << 'EOF'
+{{.Auth.Username}}
+EOF
+chmod 600 {{.ConfigPath}}/username
+
+cat > {{.ConfigPath}}/password << 'EOF'
+{{.Auth.Password}}
+EOF
+chmod 600 {{.ConfigPath}}/password
+
+cat > {{.ConfigPath}}/identity-id << 'EOF'
+{{.Auth.IdentityID}}
+EOF
+chmod 600 {{.ConfigPath}}/identity-id
+{{end}}
+
+echo "Starting infisical agent..."
+
+{{if eq .InjectMode "init"}}
+timeout {{.TimeoutSeconds}}s infisical agent --config {{.ConfigPath}}/agent-config.yaml || { echo "Agent failed with exit code $?"; exit 1; }
+{{else}}
+infisical agent --config {{.ConfigPath}}/agent-config.yaml
+{{end}}

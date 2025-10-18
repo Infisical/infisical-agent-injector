@@ -1,10 +1,13 @@
 package util
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"text/template"
 
+	"github.com/Infisical/infisical-agent-injector/pkg/templates"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -169,146 +172,56 @@ func PrettyPrintJSON(data []byte) string {
 	return string(prettyJSON)
 }
 
-func GetFilePathCreationScriptLinux(configMap ConfigMap) ([]string, error) {
-	// We use heredoc instead of echo to avoid shell escaping issues and to make sure sensitive values aren't exposed in system logs / monitoring
-	if configMap.Infisical.Auth.Type == KubernetesAuthType {
-		authConfig := KubernetesAuthConfig{}
-
-		if identityID, exists := configMap.Infisical.Auth.Config["identity-id"]; exists {
-			if id, ok := identityID.(string); ok {
-				authConfig.IdentityID = id
-			}
-		}
-
-		if authConfig.IdentityID == "" {
-			return []string{}, fmt.Errorf("identity-id is required for kubernetes auth")
-		}
-
-		return []string{
-			fmt.Sprintf("cat > %s/identity-id << 'EOF'", LinuxContainerAgentConfigVolumeMountPath),
-			authConfig.IdentityID,
-			"EOF",
-			fmt.Sprintf("chmod 600 %s/identity-id", LinuxContainerAgentConfigVolumeMountPath),
-		}, nil
-	}
-
-	if configMap.Infisical.Auth.Type == LdapAuthType {
-		authConfig := LdapAuthConfig{}
-
-		if identityID, exists := configMap.Infisical.Auth.Config["identity-id"]; exists {
-			if id, ok := identityID.(string); ok {
-				authConfig.IdentityID = id
-			}
-		}
-		if username, exists := configMap.Infisical.Auth.Config["username"]; exists {
-			if username, ok := username.(string); ok {
-				authConfig.Username = username
-			}
-		}
-		if password, exists := configMap.Infisical.Auth.Config["password"]; exists {
-			if password, ok := password.(string); ok {
-				authConfig.Password = password
-			}
-		}
-
-		if authConfig.IdentityID == "" || authConfig.Username == "" || authConfig.Password == "" {
-			return []string{}, fmt.Errorf("identity-id, username, and password are required for ldap auth")
-		}
-
-		return []string{
-			fmt.Sprintf("cat > %s/username << 'EOF'", LinuxContainerAgentConfigVolumeMountPath),
-			authConfig.Username,
-			"EOF",
-			fmt.Sprintf("chmod 600 %s/username", LinuxContainerAgentConfigVolumeMountPath),
-
-			fmt.Sprintf("cat > %s/password << 'EOF'", LinuxContainerAgentConfigVolumeMountPath),
-			authConfig.Password,
-			"EOF",
-			fmt.Sprintf("chmod 600 %s/password", LinuxContainerAgentConfigVolumeMountPath),
-
-			fmt.Sprintf("cat > %s/identity-id << 'EOF'", LinuxContainerAgentConfigVolumeMountPath),
-			authConfig.IdentityID,
-			"EOF",
-			fmt.Sprintf("chmod 600 %s/identity-id", LinuxContainerAgentConfigVolumeMountPath),
-		}, nil
-	}
-
-	return []string{}, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
-}
-
-func GetFilePathCreationScriptWindows(configMap ConfigMap) ([]string, error) {
+func getAgentAuthDataFromConfigMap(configMap ConfigMap, isWindowsPod bool) (StartupScriptAuth, error) {
 	escapeForPowerShell := func(s string) string {
 		s = strings.ReplaceAll(s, "'", "''") // single quotes need doubling
 		s = strings.ReplaceAll(s, "`", "``") // backticks need doubling
 		return s
 	}
 
+	data := StartupScriptAuth{}
+
+	// Extract and escape auth config based on type
 	if configMap.Infisical.Auth.Type == KubernetesAuthType {
-		authConfig := KubernetesAuthConfig{}
-
-		if identityID, exists := configMap.Infisical.Auth.Config["identity-id"]; exists {
-			if id, ok := identityID.(string); ok {
-				authConfig.IdentityID = id
-			}
+		if identityID, ok := configMap.Infisical.Auth.Config["identity-id"].(string); ok {
+			data.IdentityID = identityID
+		}
+		if data.IdentityID == "" {
+			return StartupScriptAuth{}, fmt.Errorf("identity-id is required for kubernetes auth")
 		}
 
-		if authConfig.IdentityID == "" {
-			return []string{}, fmt.Errorf("identity-id is required for kubernetes auth")
+		data.Type = KubernetesAuthType
+		if isWindowsPod {
+			data.IdentityID = escapeForPowerShell(data.IdentityID)
+		}
+	} else if configMap.Infisical.Auth.Type == LdapAuthType {
+		if identityID, ok := configMap.Infisical.Auth.Config["identity-id"].(string); ok {
+			data.IdentityID = identityID
+		}
+		if username, ok := configMap.Infisical.Auth.Config["username"].(string); ok {
+			data.Username = username
+		}
+		if password, ok := configMap.Infisical.Auth.Config["password"].(string); ok {
+			data.Password = password
 		}
 
-		// escape any backticks or quotes in the content
-		escapedIdentityID := escapeForPowerShell(authConfig.IdentityID)
+		if data.IdentityID == "" || data.Username == "" || data.Password == "" {
+			return StartupScriptAuth{}, fmt.Errorf("identity-id, username, and password are required for ldap auth")
+		}
 
-		return []string{
-			// write identity ID and set permissions:
-			fmt.Sprintf("'%s' | Out-File -FilePath '%s\\identity-id' -Encoding UTF8 -NoNewline", escapedIdentityID, WindowsContainerAgentConfigVolumeMountPath),
-			fmt.Sprintf("icacls '%s\\identity-id' /grant Everyone:F | Out-Null", WindowsContainerAgentConfigVolumeMountPath),
-		}, nil
+		data.Type = LdapAuthType
+		if isWindowsPod {
+			data.IdentityID = escapeForPowerShell(data.IdentityID)
+			data.Username = escapeForPowerShell(data.Username)
+			data.Password = escapeForPowerShell(data.Password)
+		}
 	}
 
-	if configMap.Infisical.Auth.Type == LdapAuthType {
-		authConfig := LdapAuthConfig{}
-
-		if identityID, exists := configMap.Infisical.Auth.Config["identity-id"]; exists {
-			if id, ok := identityID.(string); ok {
-				authConfig.IdentityID = id
-			}
-		}
-		if username, exists := configMap.Infisical.Auth.Config["username"]; exists {
-			if username, ok := username.(string); ok {
-				authConfig.Username = username
-			}
-		}
-		if password, exists := configMap.Infisical.Auth.Config["password"]; exists {
-			if password, ok := password.(string); ok {
-				authConfig.Password = password
-			}
-		}
-
-		if authConfig.IdentityID == "" || authConfig.Username == "" || authConfig.Password == "" {
-			return []string{}, fmt.Errorf("identity-id, username, and password are required for ldap auth")
-		}
-
-		escapedUsername := escapeForPowerShell(authConfig.Username)
-		escapedPassword := escapeForPowerShell(authConfig.Password)
-		escapedIdentityID := escapeForPowerShell(authConfig.IdentityID)
-
-		return []string{
-			// write username and set permissions:
-			fmt.Sprintf("'%s' | Out-File -FilePath '%s\\username' -Encoding UTF8 -NoNewline", escapedUsername, WindowsContainerAgentConfigVolumeMountPath),
-			fmt.Sprintf("icacls '%s\\username' /grant Everyone:F | Out-Null", WindowsContainerAgentConfigVolumeMountPath),
-			"",
-			// write password and set permissions:
-			fmt.Sprintf("'%s' | Out-File -FilePath '%s\\password' -Encoding UTF8 -NoNewline", escapedPassword, WindowsContainerAgentConfigVolumeMountPath),
-			fmt.Sprintf("icacls '%s\\password' /grant Everyone:F | Out-Null", WindowsContainerAgentConfigVolumeMountPath),
-			"",
-			// write identity ID and set permissions:
-			fmt.Sprintf("'%s' | Out-File -FilePath '%s\\identity-id' -Encoding UTF8 -NoNewline", escapedIdentityID, WindowsContainerAgentConfigVolumeMountPath),
-			fmt.Sprintf("icacls '%s\\identity-id' /grant Everyone:F | Out-Null", WindowsContainerAgentConfigVolumeMountPath),
-		}, nil
+	if data.Type == "" {
+		return StartupScriptAuth{}, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
 	}
 
-	return []string{}, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
+	return data, nil
 }
 
 func BuildAgentScript(configMap ConfigMap, injectMode string, isWindowsPod bool) (string, error) {
@@ -322,108 +235,60 @@ func BuildAgentScript(configMap ConfigMap, injectMode string, isWindowsPod bool)
 		return "", fmt.Errorf("failed to marshal yaml agent config: %w", err)
 	}
 
+	authData, err := getAgentAuthDataFromConfigMap(configMap, isWindowsPod)
+	if err != nil {
+		return "", fmt.Errorf("failed to get auth data: %w", err)
+	}
+
 	if isWindowsPod {
-		return buildWindowsAgentScript(configMap, injectMode, string(agentConfigYaml))
+		return buildWindowsAgentScript(injectMode, string(agentConfigYaml), authData)
 	}
-	return buildLinuxAgentScript(configMap, injectMode, string(agentConfigYaml))
+	return buildLinuxAgentScript(injectMode, string(agentConfigYaml), authData)
 }
 
-func buildLinuxAgentScript(configMap ConfigMap, injectMode string, agentConfigYaml string) (string, error) {
-	filePathCreationScript, err := GetFilePathCreationScriptLinux(configMap)
+func buildLinuxAgentScript(injectMode string, agentConfigYaml string, authData StartupScriptAuth) (string, error) {
+	data := StartupScriptTemplateData{
+		ConfigPath:      LinuxContainerAgentConfigVolumeMountPath,
+		AgentConfigYaml: agentConfigYaml,
+		InjectMode:      injectMode,
+		TimeoutSeconds:  180,
+		Auth:            authData,
+	}
+
+	tmpl, err := template.ParseFS(templates.TemplatesFS, "linux-container-startup.sh.tmpl")
 	if err != nil {
-		return "", fmt.Errorf("failed to get file path creation script: %w", err)
+		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	script := []string{
-		"#!/bin/sh",
-		"set -ex",
-		"",
-		fmt.Sprintf("cat > %s/agent-config.yaml << 'EOF'", LinuxContainerAgentConfigVolumeMountPath), // writes config file to volume
-		agentConfigYaml,
-		"EOF",
-		"",
-		fmt.Sprintf("mkdir -p %s", LinuxContainerAgentConfigVolumeMountPath),
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	script = append(script, filePathCreationScript...)
-
-	script = append(script, []string{
-		"",
-		"echo \"Starting infisical agent...\"",
-	}...)
-
-	if injectMode == InjectModeInit {
-		script = append(script, []string{
-			fmt.Sprintf("timeout 180s infisical agent --config %s/agent-config.yaml || { echo \"Agent failed with exit code $?\"; exit 1; }", LinuxContainerAgentConfigVolumeMountPath),
-		}...)
-	} else {
-		script = append(script, []string{
-			fmt.Sprintf("infisical agent --config %s/agent-config.yaml", LinuxContainerAgentConfigVolumeMountPath),
-		}...)
-	}
-
-	return strings.Join(script, "\n"), nil
+	return buf.String(), nil
 }
 
-func buildWindowsAgentScript(configMap ConfigMap, injectMode string, agentConfigYaml string) (string, error) {
-	filePathCreationScript, err := GetFilePathCreationScriptWindows(configMap)
-	if err != nil {
-		return "", fmt.Errorf("failed to get file path creation script: %w", err)
-	}
-
-	configPath := WindowsContainerAgentConfigVolumeMountPath
-
-	// powerShell here-string for multiline content - need to escape any @ symbols in yaml or we get parsing errors :-(
+func buildWindowsAgentScript(injectMode string, agentConfigYaml string, authData StartupScriptAuth) (string, error) {
+	// escape @ symbols for PowerShell here-strings
 	escapedYaml := strings.ReplaceAll(agentConfigYaml, "@", "``@")
 
-	script := []string{
-		"$ErrorActionPreference = 'Stop'",
-		"",
-		"$configContent = @\"", // writes config file to volume
-		escapedYaml,
-		"\"@",
-		fmt.Sprintf("New-Item -ItemType Directory -Force -Path '%s' | Out-Null", configPath),
-		fmt.Sprintf("$configContent | Out-File -FilePath '%s\\agent-config.yaml' -Encoding UTF8 -NoNewline", configPath),
-		"",
+	data := StartupScriptTemplateData{
+		ConfigPath:      WindowsContainerAgentConfigVolumeMountPath,
+		AgentConfigYaml: escapedYaml,
+		InjectMode:      injectMode,
+		TimeoutSeconds:  180,
+		Auth:            authData,
 	}
 
-	script = append(script, filePathCreationScript...)
-
-	script = append(script, []string{
-		"",
-		"Write-Host 'Starting infisical agent...'",
-		"",
-	}...)
-
-	if injectMode == InjectModeInit {
-		script = append(script, []string{
-			"$timeoutSeconds = 180",
-			fmt.Sprintf("$process = Start-Process -FilePath 'infisical.exe' -ArgumentList 'agent','--config','%s\\agent-config.yaml' -NoNewWindow -PassThru -Wait:$false", configPath),
-			"$finished = $process.WaitForExit($timeoutSeconds * 1000)",
-			"if (-not $finished) {",
-			"    $process.Kill()",
-			"    Remove-Variable process",
-			"    Write-Error \"Agent timed out after $timeoutSeconds seconds\"",
-			"    exit 1",
-			"}",
-			// give the process a moment to fully terminate or the exit code might not be set and cause an error even if the agent exited successfully
-			"Start-Sleep -Milliseconds 1000",
-			"$exitCode = $process.ExitCode",
-			"Remove-Variable process",
-			"if ($null -ne $exitCode -and $exitCode -ne 0) {",
-			"    Write-Error \"Agent failed with exit code $exitCode\"",
-			"    exit $exitCode",
-			"}",
-		}...)
-	} else {
-		script = append(script, []string{
-			fmt.Sprintf("$process = Start-Process -FilePath 'infisical.exe' -ArgumentList 'agent','--config','%s\\agent-config.yaml' -NoNewWindow -PassThru -Wait", configPath),
-			"if ($process.ExitCode -ne 0) {",
-			"    Write-Error \"Agent failed with exit code $($process.ExitCode)\"",
-			"    exit $process.ExitCode",
-			"}",
-		}...)
+	tmpl, err := template.ParseFS(templates.TemplatesFS, "windows-container-startup.ps1.tmpl")
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	return strings.Join(script, "\r\n"), nil
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	return buf.String(), nil
 }

@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"path/filepath"
 	"strings"
 
 	"github.com/Infisical/infisical-agent-injector/pkg/util"
+	"github.com/Infisical/infisical-agent-injector/pkg/util/path"
 	jsonpatch "github.com/evanphx/json-patch"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -75,7 +75,8 @@ func (a *Agent) ContainerVolumeMounts(existingMounts []corev1.VolumeMount) []cor
 	templateCount := len(a.configMap.Templates)
 
 	for i, template := range a.configMap.Templates {
-		destinationPath := filepath.Dir(template.DestinationPath)
+
+		destinationPath := path.Dir(template.DestinationPath, a.isWindows)
 
 		var name string
 		if templateCount > 1 {
@@ -163,35 +164,27 @@ func (a *Agent) ValidateConfigMap() error {
 		}
 	}
 
+	delimiter := "/"
+	examplePath := "/path/to/destination/secret-file"
+	if a.isWindows {
+		delimiter = "\\"
+		examplePath = "C:\\path\\to\\destination\\secret-file"
+	}
+
 	for _, template := range a.configMap.Templates {
 
 		if template.DestinationPath == "" {
 			return fmt.Errorf("template destination path is required")
 		}
 
-		if !a.isWindows {
+		// validates drive letter paths and UNC paths
+		if !path.IsAbs(template.DestinationPath, a.isWindows) {
+			return fmt.Errorf("template destination path must be an absolute path (e.g. %s)", examplePath)
+		}
 
-			// check if the path starts with a /, if it doesn't throw
-			if !strings.HasPrefix(template.DestinationPath, "/") {
-				return fmt.Errorf("template destination path must be absolute and start with a slash (e.g. /path/to/destination/secret-file)")
-			}
-
-			// ensure that the destination path is a folder
-			slashCount := strings.Count(template.DestinationPath, "/")
-			if slashCount < 2 {
-				return fmt.Errorf("template destination path must be a folder (e.g. /path/to/destination/secret-file)")
-			}
-		} else {
-			// validates drive letter paths and UNC paths
-			if !filepath.IsAbs(template.DestinationPath) {
-				return fmt.Errorf("template destination path must be an absolute path (e.g. C:\\path\\to\\destination\\secret-file)")
-			}
-
-			// ensure that the destination path is a folder
-			slashCount := strings.Count(template.DestinationPath, "\\")
-			if slashCount < 2 {
-				return fmt.Errorf("template destination path must be a folder (e.g. C:\\path\\to\\destination\\secret-file)")
-			}
+		slashCount := strings.Count(template.DestinationPath, delimiter)
+		if slashCount < 2 {
+			return fmt.Errorf("template destination path must be a folder (e.g. %s)", examplePath)
 		}
 	}
 
@@ -305,5 +298,16 @@ func (a *Agent) PatchPod() ([]byte, error) {
 
 func (a *Agent) createLifecycle() corev1.Lifecycle {
 	// todo: add logic for cleaning up access token on pod shutdown
+	// todo(daniel): explore how we can get the access token from the agent itself, since the injector doesn't have access to the token.
+
+	// approach 1: can the injector potentially read from volume mounts in the managed pods
+
+	// approach 2: can we take the user-provided credentials first, and then authenticate in the agent itself, and then pass the token to the injector? then we can revoke the token directly afterwards on pod shutdown.
+	// however this wouldn't work for leases as they are provisioned dynamically by the agent itself.
+
+	// approach 3: a new command in the CLI that when run terminates the agent if its running, and deletes the access token and any dynamic secret leases?
+	// this could be good, because on lifecycle termination we can run a command inside the agent container itself
+
+	// question for all of the above: do we need to revoke the token on init containers? I don't think we can
 	return corev1.Lifecycle{}
 }
