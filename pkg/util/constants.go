@@ -34,17 +34,22 @@ const (
 )
 
 const (
-	InitContainerName = "infisical-agent-init"
-	ContainerImage    = "infisical/cli:0.42.2" // todo(daniel): we might want to make this configurable in the future
+	InitContainerName     = "infisical-agent-init"
+	LinuxContainerImage   = "infisical/cli:0.43.10"               // todo(daniel): we might want to make this configurable in the future
+	WindowsContainerImage = "infisical/cli:0.43.10-windows-amd64" // note(daniel): currently only windows amd64 is supported. we throw if the user is trying to use a different architecture on windows.
 
-	InitContainerVolumeMountName = "infisical-init"
-	InitContainerVolumeMountPath = "/home/infisical"
-
+	InitContainerVolumeMountName    = "infisical-init"
 	SidecarContainerVolumeMountName = "infisical-sidecar"
-	SidecarContainerVolumeMountPath = "/home/infisical"
+	ContainerAgentConfigVolumeName  = "infisical-agent-config"
 
-	ContainerAgentConfigVolumeName      = "infisical-agent-config"
-	ContainerAgentConfigVolumeMountPath = "/home/infisical/config"
+	LinuxInitContainerVolumeMountPath    = "/home/infisical"
+	LinuxSidecarContainerVolumeMountPath = "/home/infisical"
+
+	WindowsInitContainerVolumeMountPath    = "C:\\infisical"
+	WindowsSidecarContainerVolumeMountPath = "C:\\infisical"
+
+	LinuxContainerAgentConfigVolumeMountPath   = "/home/infisical/config"
+	WindowsContainerAgentConfigVolumeMountPath = "C:\\infisical\\config"
 )
 
 var (

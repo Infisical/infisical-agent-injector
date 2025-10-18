@@ -1,0 +1,48 @@
+$ErrorActionPreference = 'Stop'
+
+$configContent = @"
+{{.AgentConfigYaml}}
+"@
+New-Item -ItemType Directory -Force -Path '{{.ConfigPath}}' | Out-Null
+$configContent | Out-File -FilePath '{{.ConfigPath}}\agent-config.yaml' -Encoding UTF8 -NoNewline
+
+{{if eq .Auth.Type "kubernetes"}}
+'{{.Auth.IdentityID}}' | Out-File -FilePath '{{.ConfigPath}}\identity-id' -Encoding UTF8 -NoNewline
+icacls '{{.ConfigPath}}\identity-id' /grant Everyone:F | Out-Null
+{{else if eq .Auth.Type "ldap-auth"}}
+'{{.Auth.Username}}' | Out-File -FilePath '{{.ConfigPath}}\username' -Encoding UTF8 -NoNewline
+icacls '{{.ConfigPath}}\username' /grant Everyone:F | Out-Null
+
+'{{.Auth.Password}}' | Out-File -FilePath '{{.ConfigPath}}\password' -Encoding UTF8 -NoNewline
+icacls '{{.ConfigPath}}\password' /grant Everyone:F | Out-Null
+
+'{{.Auth.IdentityID}}' | Out-File -FilePath '{{.ConfigPath}}\identity-id' -Encoding UTF8 -NoNewline
+icacls '{{.ConfigPath}}\identity-id' /grant Everyone:F | Out-Null
+{{end}}
+
+Write-Host 'Starting infisical agent...'
+
+{{if eq .InjectMode "init"}}
+$timeoutSeconds = {{.TimeoutSeconds}}
+$process = Start-Process -FilePath 'infisical.exe' -ArgumentList 'agent','--config','{{.ConfigPath}}\agent-config.yaml' -NoNewWindow -PassThru -Wait:$false
+$finished = $process.WaitForExit($timeoutSeconds * 1000)
+if (-not $finished) {
+    $process.Kill()
+    Remove-Variable process
+    Write-Error "Agent timed out after $timeoutSeconds seconds"
+    exit 1
+}
+Start-Sleep -Milliseconds 1000
+$exitCode = $process.ExitCode
+Remove-Variable process
+if ($null -ne $exitCode -and $exitCode -ne 0) {
+    Write-Error "Agent failed with exit code $exitCode"
+    exit $exitCode
+}
+{{else}}
+$process = Start-Process -FilePath 'infisical.exe' -ArgumentList 'agent','--config','{{.ConfigPath}}\agent-config.yaml' -NoNewWindow -PassThru -Wait
+if ($process.ExitCode -ne 0) {
+    Write-Error "Agent failed with exit code $($process.ExitCode)"
+    exit $process.ExitCode
+}
+{{end}}
