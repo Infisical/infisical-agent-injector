@@ -19,12 +19,14 @@ WORKDIR /app
 COPY --from=builder /app/infisical-agent-injector /app/
 ENTRYPOINT ["/sbin/tini", "--", "/app/infisical-agent-injector"]
 
-
-# Windows final stage  
-FROM mcr.microsoft.com/powershell:nanoserver-ltsc2022 AS windows
+# Windows 2022 stage
+FROM mcr.microsoft.com/powershell:nanoserver-ltsc2022 AS windows2022
 WORKDIR /app
 COPY --from=builder /app/infisical-agent-injector.exe /app/
 ENTRYPOINT ["C:\\app\\infisical-agent-injector.exe"]
 
-# Select final stage based on OS
-FROM ${TARGETOS} AS final
+# Windows 2019 stage
+FROM mcr.microsoft.com/powershell:nanoserver-1809 AS windows2019
+WORKDIR /app
+COPY --from=builder /app/infisical-agent-injector.exe /app/
+ENTRYPOINT ["C:\\app\\infisical-agent-injector.exe"]
