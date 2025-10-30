@@ -107,8 +107,6 @@ func (a *Agent) ContainerAgentConfigVolume() corev1.Volume {
 }
 
 func (a *Agent) ValidateConfigMap() error {
-
-	// currnetly only init mode is supported
 	if err := util.ValidateInjectMode(a.injectMode); err != nil {
 		return err
 	}
