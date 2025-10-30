@@ -24,8 +24,9 @@ const (
 )
 
 const (
-	InjectModeInit    = "init"
-	InjectModeSidecar = "sidecar"
+	InjectModeInit        = "init"
+	InjectModeSidecar     = "sidecar"
+	InjectModeSidecarInit = "sidecar-init"
 )
 
 const (
@@ -37,11 +38,8 @@ const (
 	InitContainerName = "infisical-agent-init"
 	ContainerImage    = "infisical/cli:0.42.2" // todo(daniel): we might want to make this configurable in the future
 
-	InitContainerVolumeMountName = "infisical-init"
-	InitContainerVolumeMountPath = "/home/infisical"
-
-	SidecarContainerVolumeMountName = "infisical-sidecar"
-	SidecarContainerVolumeMountPath = "/home/infisical"
+	ContainerWorkDirVolumeName      = "infisical-work-dir"
+	ContainerWorkDirVolumeMountPath = "/home/infisical"
 
 	ContainerAgentConfigVolumeName      = "infisical-agent-config"
 	ContainerAgentConfigVolumeMountPath = "/home/infisical/config"
