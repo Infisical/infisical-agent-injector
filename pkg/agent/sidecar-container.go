@@ -17,8 +17,8 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 			ReadOnly:  true,
 		},
 		{
-			Name:      util.SidecarContainerVolumeMountName,
-			MountPath: util.SidecarContainerVolumeMountPath,
+			Name:      util.ContainerWorkDirVolumeName,
+			MountPath: util.ContainerWorkDirVolumeMountPath,
 			ReadOnly:  false,
 		},
 	}
@@ -30,7 +30,7 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 		ReadOnly:  false,
 	})
 
-	parsedAgentConfig, err := util.BuildAgentConfigFromConfigMap(a.configMap, a.injectMode)
+	parsedAgentConfig, err := util.BuildAgentConfigFromConfigMap(a.configMap, false)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to build agent config: %w", err)
 	}

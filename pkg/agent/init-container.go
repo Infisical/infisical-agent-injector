@@ -12,8 +12,8 @@ import (
 func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 	volumeMounts := []corev1.VolumeMount{
 		{
-			Name:      util.InitContainerVolumeMountName,
-			MountPath: util.InitContainerVolumeMountPath,
+			Name:      util.ContainerWorkDirVolumeName,
+			MountPath: util.ContainerWorkDirVolumeMountPath,
 			ReadOnly:  false,
 		},
 		{
@@ -30,7 +30,7 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		ReadOnly:  false, // Changed to false to allow writing
 	})
 
-	parsedAgentConfig, err := util.BuildAgentConfigFromConfigMap(a.configMap, a.injectMode)
+	parsedAgentConfig, err := util.BuildAgentConfigFromConfigMap(a.configMap, true)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to build agent config: %w", err)
 	}

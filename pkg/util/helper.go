@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string) (*AgentConfig, error) {
+func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool) (*AgentConfig, error) {
 
 	var authConfig map[string]interface{} = map[string]interface{}{}
 
@@ -30,7 +30,7 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string) (*Ag
 	agentConfig := &AgentConfig{
 		Infisical: InfisicalConfig{
 			Address:       configMap.Infisical.Address,
-			ExitAfterAuth: injectMode == InjectModeInit,
+			ExitAfterAuth: exitAfterAuth,
 		},
 		Templates: configMap.Templates,
 		Auth: AuthConfig{
@@ -170,4 +170,11 @@ func CreateDefaultResources() (corev1.ResourceRequirements, error) {
 	resources.Requests = requests
 
 	return resources, nil
+}
+
+func ValidateInjectMode(injectMode string) error {
+	if injectMode != InjectModeSidecarInit && injectMode != InjectModeInit && injectMode != InjectModeSidecar {
+		return fmt.Errorf("inject mode %s not supported. please use %s, %s, or %s", injectMode, InjectModeInit, InjectModeSidecar, InjectModeSidecarInit)
+	}
+	return nil
 }
