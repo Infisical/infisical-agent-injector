@@ -12,4 +12,4 @@ failurePolicy: Ignore
 
 image:
   repository: infisical/infisical-agent-injector
-  tag: v0.1.2
+  tag: v0.1.3
