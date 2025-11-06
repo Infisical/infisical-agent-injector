@@ -57,3 +57,18 @@ type ConfigMap struct {
 	} `yaml:"infisical"`
 	Templates []Template `yaml:"templates"`
 }
+
+type StartupScriptTemplateData struct {
+	ConfigPath      string
+	AgentConfigYaml string
+	ExitAfterAuth   bool
+	TimeoutSeconds  int
+	Auth            StartupScriptAuth
+}
+
+type StartupScriptAuth struct {
+	Type       string
+	IdentityID string
+	Username   string
+	Password   string
+}

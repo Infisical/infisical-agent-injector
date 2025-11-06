@@ -1,51 +1,103 @@
 name: Release Docker image for Infisical Agent Injector
 on:
-    push:
-        tags:
-            - "v*.*.*"
+  push:
+    tags:
+      - "v*.*.*"
 
 jobs:
-    release:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
 
-            - name: 🔧 Set up QEMU
-              uses: docker/setup-qemu-action@v1
+      - name: 🔧 Set up QEMU
+        uses: docker/setup-qemu-action@v1
 
-            - name: 🔧 Set up Docker Buildx
-              uses: docker/setup-buildx-action@v1
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
 
-            - name: 🐋 Login to Docker Hub
-              uses: docker/login-action@v1
-              with:
-                  username: ${{ secrets.DOCKERHUB_USERNAME }}
-                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: 🐋 Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-            - name: Build and push
-              id: docker_build
-              uses: docker/build-push-action@v2
-              with:
-                  push: true
-                  platforms: linux/amd64,linux/arm64
-                  build-args: |
-                      VERSION=${{ github.ref_name }}
-                  tags: |
-                      infisical/infisical-agent-injector:latest
-                      infisical/infisical-agent-injector:${{ github.ref_name }}
+      - name: Build Linux Image
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          platforms: linux/amd64,linux/arm64
+          target: linux
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          tags: |
+            infisical/infisical-agent-injector:linux-latest
+            infisical/infisical-agent-injector:linux-${{ github.ref_name }}
+          outputs: type=image,push=false
 
-            - name: Install Helm
-              uses: azure/setup-helm@v3
-              with:
-                  version: v3.10.0
+      - name: Build Windows 2019 Image
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          platforms: windows/amd64
+          target: windows2019
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          tags: |
+            infisical/infisical-agent-injector:windows-server-2019-amd64-latest
+            infisical/infisical-agent-injector:windows-server-2019-amd64-${{ github.ref_name }}
+          outputs: type=image,push=false
 
-            - name: Install python
-              uses: actions/setup-python@v4
+      - name: Build Windows 2022 Image
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          platforms: windows/amd64
+          target: windows2022
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          tags: |
+            infisical/infisical-agent-injector:windows-server-2022-amd64-latest
+            infisical/infisical-agent-injector:windows-server-2022-amd64-${{ github.ref_name }}
+          outputs: type=image,push=false
 
-            - name: Install Cloudsmith CLI
-              run: pip install --upgrade cloudsmith-cli
+      # We push and create the manifest separately to ensure that all the builds were successful. This is to avoid doing partial releases in case of errors during the build
+      - name: Push all images
+        run: |
+          docker push infisical/infisical-agent-injector:linux-latest
+          docker push infisical/infisical-agent-injector:linux-${{ github.ref_name }}
+          docker push infisical/infisical-agent-injector:windows-server-2019-amd64-latest
+          docker push infisical/infisical-agent-injector:windows-server-2019-amd64-${{ github.ref_name }}
+          docker push infisical/infisical-agent-injector:windows-server-2022-amd64-latest
+          docker push infisical/infisical-agent-injector:windows-server-2022-amd64-${{ github.ref_name }}
 
-            - name: Build and push helm package to Cloudsmith
-              run: sh upload-to-cloudsmith.sh
-              env:
-                  CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+      - name: Create and push manifest
+        run: |
+          docker manifest create infisical/infisical-agent-injector:latest \
+            infisical/infisical-agent-injector:linux-latest \
+            infisical/infisical-agent-injector:windows-server-2019-amd64-latest \
+            infisical/infisical-agent-injector:windows-server-2022-amd64-latest
+
+          docker manifest create infisical/infisical-agent-injector:${{ github.ref_name }} \
+            infisical/infisical-agent-injector:linux-${{ github.ref_name }} \
+            infisical/infisical-agent-injector:windows-server-2019-amd64-${{ github.ref_name }} \
+            infisical/infisical-agent-injector:windows-server-2022-amd64-${{ github.ref_name }}
+
+          docker manifest push infisical/infisical-agent-injector:latest
+          docker manifest push infisical/infisical-agent-injector:${{ github.ref_name }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.10.0
+
+      - name: Install python
+        uses: actions/setup-python@v4
+
+      - name: Install Cloudsmith CLI
+        run: pip install --upgrade cloudsmith-cli
+
+      - name: Build and push helm package to Cloudsmith
+        run: sh upload-to-cloudsmith.sh
+        env:
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}

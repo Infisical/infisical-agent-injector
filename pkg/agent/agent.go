@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Infisical/infisical-agent-injector/pkg/util"
+	"github.com/Infisical/infisical-agent-injector/pkg/util/path"
 	jsonpatch "github.com/evanphx/json-patch"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -16,6 +17,8 @@ type Agent struct {
 	configMap                 *util.ConfigMap
 	serviceAccountTokenVolume *ServiceAccountTokenVolume
 	injectMode                string
+	agentImage                string
+	isWindows                 bool
 }
 
 func NewAgent(pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
@@ -48,22 +51,32 @@ func NewAgent(pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
 		}
 	}
 
+	agentImage := util.LinuxContainerImage
+	isWindows := false
+
+	if util.IsWindowsPod(pod) {
+		agentImage = util.WindowsContainerImage
+		isWindows = true
+	}
+
 	return &Agent{
 		pod:                       pod,
 		configMap:                 configMap,
 		serviceAccountTokenVolume: serviceAccountTokenVolume,
 		injectMode:                injectMode,
+		agentImage:                agentImage,
+		isWindows:                 isWindows,
 	}, nil
 }
 
-func (a *Agent) ContainerVolumeMounts() []corev1.VolumeMount {
+func (a *Agent) ContainerVolumeMounts(existingMounts []corev1.VolumeMount) []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
 	templateCount := len(a.configMap.Templates)
 
 	for i, template := range a.configMap.Templates {
 
-		destinationPath := strings.Join(strings.Split(template.DestinationPath, "/")[:len(strings.Split(template.DestinationPath, "/"))-1], "/")
+		destinationPath := path.Dir(template.DestinationPath, a.isWindows)
 
 		var name string
 		if templateCount > 1 {
@@ -72,12 +85,21 @@ func (a *Agent) ContainerVolumeMounts() []corev1.VolumeMount {
 			name = "infisical-secrets"
 		}
 
-		// check if the volume mounts already have a path that matches the destination path
 		alreadyExists := false
-		for _, volumeMount := range volumeMounts {
+
+		for _, volumeMount := range existingMounts {
 			if volumeMount.MountPath == destinationPath {
 				alreadyExists = true
 				break
+			}
+		}
+
+		if !alreadyExists {
+			for _, volumeMount := range volumeMounts {
+				if volumeMount.MountPath == destinationPath {
+					alreadyExists = true
+					break
+				}
 			}
 		}
 
@@ -140,21 +162,27 @@ func (a *Agent) ValidateConfigMap() error {
 		}
 	}
 
+	delimiter := "/"
+	examplePath := "/path/to/destination/secret-file"
+	if a.isWindows {
+		delimiter = "\\"
+		examplePath = "C:\\path\\to\\destination\\secret-file"
+	}
+
 	for _, template := range a.configMap.Templates {
 
 		if template.DestinationPath == "" {
 			return fmt.Errorf("template destination path is required")
 		}
 
-		// check if the path starts with a /, if it doesn't throw
-		if !strings.HasPrefix(template.DestinationPath, "/") {
-			return fmt.Errorf("template destination path must be absolute and start with a slash (e.g. /path/to/destination/secret-file)")
+		// validates drive letter paths and UNC paths
+		if !path.IsAbs(template.DestinationPath, a.isWindows) {
+			return fmt.Errorf("template destination path must be an absolute path (e.g. %s)", examplePath)
 		}
 
-		// ensure that the destination path is a folder
-		slashCount := strings.Count(template.DestinationPath, "/")
+		slashCount := strings.Count(template.DestinationPath, delimiter)
 		if slashCount < 2 {
-			return fmt.Errorf("template destination path must be a folder (e.g. /path/to/destination/secret-file)")
+			return fmt.Errorf("template destination path must be a folder (e.g. %s)", examplePath)
 		}
 	}
 
@@ -169,7 +197,7 @@ func (a *Agent) PatchPod() ([]byte, error) {
 	for i, container := range a.pod.Spec.Containers {
 		podPatches = append(podPatches, addVolumeMounts(
 			container.VolumeMounts,
-			a.ContainerVolumeMounts(),
+			a.ContainerVolumeMounts(container.VolumeMounts),
 			fmt.Sprintf("/spec/containers/%d/volumeMounts", i))...)
 	}
 
@@ -252,6 +280,17 @@ func (a *Agent) PatchPod() ([]byte, error) {
 
 func (a *Agent) createLifecycle() corev1.Lifecycle {
 	// todo: add logic for cleaning up access token on pod shutdown
+	// todo(daniel): explore how we can get the access token from the agent itself, since the injector doesn't have access to the token.
+
+	// approach 1: can the injector potentially read from volume mounts in the managed pods
+
+	// approach 2: can we take the user-provided credentials first, and then authenticate in the agent itself, and then pass the token to the injector? then we can revoke the token directly afterwards on pod shutdown.
+	// however this wouldn't work for leases as they are provisioned dynamically by the agent itself.
+
+	// approach 3: a new command in the CLI that when run terminates the agent if its running, and deletes the access token and any dynamic secret leases?
+	// this could be good, because on lifecycle termination we can run a command inside the agent container itself
+
+	// question for all of the above: do we need to revoke the token on init containers? I don't think we can
 	return corev1.Lifecycle{}
 }
 
@@ -278,7 +317,7 @@ func (a *Agent) appendInitContainer(podPatches *jsonpatch.Patch) error {
 		}
 		*podPatches = append(*podPatches, addVolumeMounts(
 			container.VolumeMounts,
-			a.ContainerVolumeMounts(),
+			a.ContainerVolumeMounts(container.VolumeMounts),
 			fmt.Sprintf("/spec/initContainers/%d/volumeMounts", i))...)
 	}
 	return nil

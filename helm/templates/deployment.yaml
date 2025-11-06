@@ -19,6 +19,10 @@ spec:
                 app.kubernetes.io/instance: infisical
         spec:
             serviceAccountName: "infisical-agent-injector"
+            {{- if .Values.nodeSelector }}
+            nodeSelector:
+              {{- toYaml .Values.nodeSelector | nindent 14 }}
+            {{- end }}
             containers:
                 - name: sidecar-injector
                   resources:
