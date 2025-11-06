@@ -1,11 +1,12 @@
 #!/bin/sh
 set -ex
 
+mkdir -p {{.ConfigPath}}
+
 cat > {{.ConfigPath}}/agent-config.yaml << 'EOF'
 {{.AgentConfigYaml}}
 EOF
 
-mkdir -p {{.ConfigPath}}
 
 {{if eq .Auth.Type "kubernetes"}}
 cat > {{.ConfigPath}}/identity-id << 'EOF'

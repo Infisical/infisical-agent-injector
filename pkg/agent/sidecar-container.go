@@ -23,14 +23,14 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 		})
 	}
 
-	// This will add the secret volume mounts
-	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
-
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      util.ContainerWorkDirVolumeName,
 		MountPath: agentConfigVolumeMountPath,
 		ReadOnly:  false,
 	})
+
+	// This will add the secret volume mounts
+	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
 
 	script, err := util.BuildAgentScript(*a.configMap, false, a.isWindows)
 	if err != nil {

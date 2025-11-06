@@ -317,7 +317,7 @@ func (a *Agent) appendInitContainer(podPatches *jsonpatch.Patch) error {
 		}
 		*podPatches = append(*podPatches, addVolumeMounts(
 			container.VolumeMounts,
-			a.ContainerVolumeMounts(),
+			a.ContainerVolumeMounts(container.VolumeMounts),
 			fmt.Sprintf("/spec/initContainers/%d/volumeMounts", i))...)
 	}
 	return nil

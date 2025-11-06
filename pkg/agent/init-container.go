@@ -23,14 +23,13 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 			ReadOnly:  true,
 		})
 	}
-
-	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
-
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      util.ContainerWorkDirVolumeName,
 		MountPath: agentConfigVolumeMountPath,
 		ReadOnly:  false,
 	})
+
+	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
 
 	script, err := util.BuildAgentScript(*a.configMap, true, a.isWindows)
 	if err != nil {

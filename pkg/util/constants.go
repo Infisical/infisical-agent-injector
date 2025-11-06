@@ -44,18 +44,11 @@ const (
 	ContainerAgentConfigVolumeName  = "infisical-agent-config"
 
 	ContainerWorkDirVolumeName             = "infisical-work-dir"
-	LinuxContainerWorkDirVolumeMountPath   = "/home/infisical"
-	WindowsContainerWorkDirVolumeMountPath = "C:\\infisical"
+	LinuxContainerWorkDirVolumeMountPath   = "/home/infisical_work_directory"
+	WindowsContainerWorkDirVolumeMountPath = "C:\\infisical_work_directory"
 
-	// Should probably be removed:
-	LinuxInitContainerVolumeMountPath    = "/home/infisical"
-	LinuxSidecarContainerVolumeMountPath = "/home/infisical"
-
-	WindowsInitContainerVolumeMountPath    = "C:\\infisical"
-	WindowsSidecarContainerVolumeMountPath = "C:\\infisical"
-
-	LinuxContainerAgentConfigVolumeMountPath   = "/home/infisical/config"
-	WindowsContainerAgentConfigVolumeMountPath = "C:\\infisical\\config"
+	LinuxContainerAgentConfigVolumeMountPath   = "/home/infisical_work_directory/config"
+	WindowsContainerAgentConfigVolumeMountPath = "C:\\infisical_work_directory\\config"
 )
 
 var (
