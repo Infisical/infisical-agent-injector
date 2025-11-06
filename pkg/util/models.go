@@ -61,7 +61,7 @@ type ConfigMap struct {
 type StartupScriptTemplateData struct {
 	ConfigPath      string
 	AgentConfigYaml string
-	InjectMode      string
+	ExitAfterAuth   bool
 	TimeoutSeconds  int
 	Auth            StartupScriptAuth
 }

@@ -31,7 +31,7 @@ chmod 600 {{.ConfigPath}}/identity-id
 
 echo "Starting infisical agent..."
 
-{{if eq .InjectMode "init"}}
+{{if eq .ExitAfterAuth true}}
 timeout {{.TimeoutSeconds}}s infisical agent --config {{.ConfigPath}}/agent-config.yaml || { echo "Agent failed with exit code $?"; exit 1; }
 {{else}}
 infisical agent --config {{.ConfigPath}}/agent-config.yaml

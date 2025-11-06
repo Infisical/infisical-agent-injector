@@ -22,7 +22,7 @@ icacls '{{.ConfigPath}}\identity-id' /grant Everyone:F | Out-Null
 
 Write-Host 'Starting infisical agent...'
 
-{{if eq .InjectMode "init"}}
+{{if eq .ExitAfterAuth true}}
 $timeoutSeconds = {{.TimeoutSeconds}}
 $process = Start-Process -FilePath 'infisical.exe' -ArgumentList 'agent','--config','{{.ConfigPath}}\agent-config.yaml' -NoNewWindow -PassThru -Wait:$false
 $finished = $process.WaitForExit($timeoutSeconds * 1000)
