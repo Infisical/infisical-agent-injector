@@ -9,9 +9,9 @@ import (
 
 func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 
-	agentConfigVolumeMountPath := util.LinuxContainerAgentConfigVolumeMountPath
+	agentConfigVolumeMountPath := util.LinuxContainerWorkDirVolumeMountPath
 	if a.isWindows {
-		agentConfigVolumeMountPath = util.WindowsContainerAgentConfigVolumeMountPath
+		agentConfigVolumeMountPath = util.WindowsContainerWorkDirVolumeMountPath
 	}
 
 	volumeMounts := []corev1.VolumeMount{}
@@ -27,12 +27,12 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
 
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      util.ContainerAgentConfigVolumeName,
+		Name:      util.ContainerWorkDirVolumeName,
 		MountPath: agentConfigVolumeMountPath,
 		ReadOnly:  false,
 	})
 
-	script, err := util.BuildAgentScript(*a.configMap, a.injectMode, a.isWindows)
+	script, err := util.BuildAgentScript(*a.configMap, true, a.isWindows)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to build agent script: %w", err)
 	}

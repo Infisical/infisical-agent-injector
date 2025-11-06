@@ -24,8 +24,9 @@ const (
 )
 
 const (
-	InjectModeInit    = "init"
-	InjectModeSidecar = "sidecar"
+	InjectModeInit        = "init"
+	InjectModeSidecar     = "sidecar"
+	InjectModeSidecarInit = "sidecar-init"
 )
 
 const (
@@ -42,6 +43,11 @@ const (
 	SidecarContainerVolumeMountName = "infisical-sidecar"
 	ContainerAgentConfigVolumeName  = "infisical-agent-config"
 
+	ContainerWorkDirVolumeName             = "infisical-work-dir"
+	LinuxContainerWorkDirVolumeMountPath   = "/home/infisical"
+	WindowsContainerWorkDirVolumeMountPath = "C:\\infisical"
+
+	// Should probably be removed:
 	LinuxInitContainerVolumeMountPath    = "/home/infisical"
 	LinuxSidecarContainerVolumeMountPath = "/home/infisical"
 

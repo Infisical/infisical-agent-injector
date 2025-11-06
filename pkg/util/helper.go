@@ -13,6 +13,23 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+func PrettyPrintJSON(data []byte) string {
+	var obj interface{}
+	err := json.Unmarshal(data, &obj)
+	if err != nil {
+		// if we can't parse it as JSON, just return the original string
+		return string(data)
+	}
+
+	prettyJSON, err := json.MarshalIndent(obj, "", "  ")
+	if err != nil {
+		// if re-marshaling fails, return the original string
+		return string(data)
+	}
+
+	return string(prettyJSON)
+}
+
 func CreateDefaultResources() (corev1.ResourceRequirements, error) {
 	// currently has the same resources and limits as the infisical gateway
 	// we might want to make this configurable in the future
@@ -103,7 +120,7 @@ func IsWindowsPod(pod *corev1.Pod) bool {
 	return false
 }
 
-func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string, isWindowsPod bool) (*AgentConfig, error) {
+func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isWindowsPod bool) (*AgentConfig, error) {
 
 	mountPath := LinuxContainerAgentConfigVolumeMountPath
 	if isWindowsPod {
@@ -135,7 +152,7 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string, isWi
 	agentConfig := &AgentConfig{
 		Infisical: InfisicalConfig{
 			Address:       configMap.Infisical.Address,
-			ExitAfterAuth: injectMode == InjectModeInit,
+			ExitAfterAuth: exitAfterAuth,
 		},
 		Templates: configMap.Templates,
 		Auth: AuthConfig{
@@ -153,23 +170,6 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, injectMode string, isWi
 	}
 
 	return agentConfig, nil
-}
-
-func PrettyPrintJSON(data []byte) string {
-	var obj interface{}
-	err := json.Unmarshal(data, &obj)
-	if err != nil {
-		// if we can't parse it as JSON, just return the original string
-		return string(data)
-	}
-
-	prettyJSON, err := json.MarshalIndent(obj, "", "  ")
-	if err != nil {
-		// if re-marshaling fails, return the original string
-		return string(data)
-	}
-
-	return string(prettyJSON)
 }
 
 func getAgentAuthDataFromConfigMap(configMap ConfigMap, isWindowsPod bool) (StartupScriptAuth, error) {
@@ -224,8 +224,9 @@ func getAgentAuthDataFromConfigMap(configMap ConfigMap, isWindowsPod bool) (Star
 	return data, nil
 }
 
-func BuildAgentScript(configMap ConfigMap, injectMode string, isWindowsPod bool) (string, error) {
-	parsedAgentConfig, err := BuildAgentConfigFromConfigMap(&configMap, injectMode, isWindowsPod)
+func BuildAgentScript(configMap ConfigMap, exitAfterAuth bool, isWindowsPod bool) (string, error) {
+
+	parsedAgentConfig, err := BuildAgentConfigFromConfigMap(&configMap, exitAfterAuth, isWindowsPod)
 	if err != nil {
 		return "", fmt.Errorf("failed to build agent config: %w", err)
 	}
@@ -241,16 +242,16 @@ func BuildAgentScript(configMap ConfigMap, injectMode string, isWindowsPod bool)
 	}
 
 	if isWindowsPod {
-		return buildWindowsAgentScript(injectMode, string(agentConfigYaml), authData)
+		return buildWindowsAgentScript(exitAfterAuth, string(agentConfigYaml), authData)
 	}
-	return buildLinuxAgentScript(injectMode, string(agentConfigYaml), authData)
+	return buildLinuxAgentScript(exitAfterAuth, string(agentConfigYaml), authData)
 }
 
-func buildLinuxAgentScript(injectMode string, agentConfigYaml string, authData StartupScriptAuth) (string, error) {
+func buildLinuxAgentScript(exitAfterAuth bool, agentConfigYaml string, authData StartupScriptAuth) (string, error) {
 	data := StartupScriptTemplateData{
 		ConfigPath:      LinuxContainerAgentConfigVolumeMountPath,
 		AgentConfigYaml: agentConfigYaml,
-		InjectMode:      injectMode,
+		ExitAfterAuth:   exitAfterAuth,
 		TimeoutSeconds:  180,
 		Auth:            authData,
 	}
@@ -268,14 +269,14 @@ func buildLinuxAgentScript(injectMode string, agentConfigYaml string, authData S
 	return buf.String(), nil
 }
 
-func buildWindowsAgentScript(injectMode string, agentConfigYaml string, authData StartupScriptAuth) (string, error) {
+func buildWindowsAgentScript(exitAfterAuth bool, agentConfigYaml string, authData StartupScriptAuth) (string, error) {
 	// escape @ symbols for PowerShell here-strings
 	escapedYaml := strings.ReplaceAll(agentConfigYaml, "@", "``@")
 
 	data := StartupScriptTemplateData{
 		ConfigPath:      WindowsContainerAgentConfigVolumeMountPath,
 		AgentConfigYaml: escapedYaml,
-		InjectMode:      injectMode,
+		ExitAfterAuth:   exitAfterAuth,
 		TimeoutSeconds:  180,
 		Auth:            authData,
 	}
@@ -291,4 +292,11 @@ func buildWindowsAgentScript(injectMode string, agentConfigYaml string, authData
 	}
 
 	return buf.String(), nil
+}
+
+func ValidateInjectMode(injectMode string) error {
+	if injectMode != InjectModeSidecarInit && injectMode != InjectModeInit && injectMode != InjectModeSidecar {
+		return fmt.Errorf("inject mode %s not supported. please use %s, %s, or %s", injectMode, InjectModeInit, InjectModeSidecar, InjectModeSidecarInit)
+	}
+	return nil
 }

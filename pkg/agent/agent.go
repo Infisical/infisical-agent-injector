@@ -129,10 +129,8 @@ func (a *Agent) ContainerAgentConfigVolume() corev1.Volume {
 }
 
 func (a *Agent) ValidateConfigMap() error {
-
-	// currnetly only init mode is supported
-	if a.injectMode != util.InjectModeInit && a.injectMode != util.InjectModeSidecar {
-		return fmt.Errorf("inject mode %s not supported. please use %s or %s", a.injectMode, util.InjectModeInit, util.InjectModeSidecar)
+	if err := util.ValidateInjectMode(a.injectMode); err != nil {
+		return err
 	}
 
 	// check that the config map has a valid auth config
@@ -205,13 +203,11 @@ func (a *Agent) PatchPod() ([]byte, error) {
 
 	requiredVolumeName := ""
 
-	if a.injectMode == util.InjectModeInit {
-		requiredVolumeName = util.InitContainerVolumeMountName
-	} else if a.injectMode == util.InjectModeSidecar {
-		requiredVolumeName = util.SidecarContainerVolumeMountName
-	} else {
-		return nil, fmt.Errorf("unknown inject mode: %s", a.injectMode)
+	if err := util.ValidateInjectMode(a.injectMode); err != nil {
+		return nil, err
 	}
+
+	requiredVolumeName = util.ContainerWorkDirVolumeName
 
 	// 2. add the user-provided agent config to a volume accessible from the init container
 	requiredVolumes := []corev1.Volume{
@@ -248,41 +244,27 @@ func (a *Agent) PatchPod() ([]byte, error) {
 		requiredVolumes,
 		"/spec/volumes")...)
 
-	if a.injectMode == util.InjectModeInit {
-		container, err := a.ContainerInitSidecar()
+	switch a.injectMode {
+	case util.InjectModeInit:
+		err := a.appendInitContainer(&podPatches)
+		if err != nil {
+			return nil, err
+		}
+	case util.InjectModeSidecar:
+		err := a.appendSidecarContainer(&podPatches)
+		if err != nil {
+			return nil, err
+		}
+	case util.InjectModeSidecarInit:
+		err := a.appendInitContainer(&podPatches)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(a.pod.Spec.InitContainers) != 0 {
-			podPatches = append(podPatches, removeContainers("/spec/initContainers")...)
-		}
-
-		containers := append([]corev1.Container{container}, a.pod.Spec.InitContainers...)
-
-		podPatches = append(podPatches, addContainers(
-			[]corev1.Container{},
-			containers,
-			"/spec/initContainers")...)
-
-		for i, container := range containers {
-			if container.Name == util.InitContainerName {
-				continue
-			}
-			podPatches = append(podPatches, addVolumeMounts(
-				container.VolumeMounts,
-				a.ContainerVolumeMounts(container.VolumeMounts),
-				fmt.Sprintf("/spec/initContainers/%d/volumeMounts", i))...)
-		}
-	} else if a.injectMode == util.InjectModeSidecar {
-		container, err := a.ContainerSidecar()
+		err = a.appendSidecarContainer(&podPatches)
 		if err != nil {
 			return nil, err
 		}
-		podPatches = append(podPatches, addContainers(
-			a.pod.Spec.Containers,
-			[]corev1.Container{container},
-			"/spec/containers")...)
 	}
 
 	podPatches = append(podPatches, updatePodAnnotations(
@@ -310,4 +292,45 @@ func (a *Agent) createLifecycle() corev1.Lifecycle {
 
 	// question for all of the above: do we need to revoke the token on init containers? I don't think we can
 	return corev1.Lifecycle{}
+}
+
+func (a *Agent) appendInitContainer(podPatches *jsonpatch.Patch) error {
+	container, err := a.ContainerInitSidecar()
+	if err != nil {
+		return err
+	}
+
+	if len(a.pod.Spec.InitContainers) != 0 {
+		*podPatches = append(*podPatches, removeContainers("/spec/initContainers")...)
+	}
+
+	containers := append([]corev1.Container{container}, a.pod.Spec.InitContainers...)
+
+	*podPatches = append(*podPatches, addContainers(
+		[]corev1.Container{},
+		containers,
+		"/spec/initContainers")...)
+
+	for i, container := range containers {
+		if container.Name == util.InitContainerName {
+			continue
+		}
+		*podPatches = append(*podPatches, addVolumeMounts(
+			container.VolumeMounts,
+			a.ContainerVolumeMounts(),
+			fmt.Sprintf("/spec/initContainers/%d/volumeMounts", i))...)
+	}
+	return nil
+}
+
+func (a *Agent) appendSidecarContainer(podPatches *jsonpatch.Patch) error {
+	container, err := a.ContainerSidecar()
+	if err != nil {
+		return err
+	}
+	*podPatches = append(*podPatches, addContainers(
+		a.pod.Spec.Containers,
+		[]corev1.Container{container},
+		"/spec/containers")...)
+	return nil
 }
