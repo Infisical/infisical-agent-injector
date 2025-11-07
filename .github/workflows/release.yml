@@ -26,6 +26,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: false
+          load: true
           platforms: linux/amd64,linux/arm64
           target: linux
           build-args: |
@@ -39,6 +40,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: false
+          load: true
           platforms: windows/amd64
           target: windows2019
           build-args: |
@@ -52,6 +54,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: false
+          load: true
           platforms: windows/amd64
           target: windows2022
           build-args: |
