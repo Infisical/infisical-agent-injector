@@ -43,8 +43,8 @@ jobs:
           build-args: |
             VERSION=${{ github.ref_name }}
           tags: |
-            infisical/infisical-agent-injector:windows-server-2019-latest
-            infisical/infisical-agent-injector:windows-server-2019-${{ github.ref_name }}
+            infisical/infisical-agent-injector:latest-windows-server-2019
+            infisical/infisical-agent-injector:${{ github.ref_name }}-windows-server-2019
 
       - name: Build and Push Windows 2022
         uses: docker/build-push-action@v5
@@ -55,8 +55,8 @@ jobs:
           build-args: |
             VERSION=${{ github.ref_name }}
           tags: |
-            infisical/infisical-agent-injector:windows-server-2022-latest
-            infisical/infisical-agent-injector:windows-server-2022-${{ github.ref_name }}
+            infisical/infisical-agent-injector:latest-windows-server-2022
+            infisical/infisical-agent-injector:${{ github.ref_name }}-windows-server-2022
 
       - name: Install Helm
         uses: azure/setup-helm@v3
