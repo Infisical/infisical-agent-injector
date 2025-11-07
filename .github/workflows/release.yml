@@ -22,11 +22,10 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Linux Image
+      - name: Build and Push Linux Image
         uses: docker/build-push-action@v5
         with:
-          push: false
-          load: true
+          push: true
           platforms: linux/amd64,linux/arm64
           target: linux
           build-args: |
@@ -34,13 +33,11 @@ jobs:
           tags: |
             infisical/infisical-agent-injector:linux-latest
             infisical/infisical-agent-injector:linux-${{ github.ref_name }}
-          outputs: type=image,push=false
 
-      - name: Build Windows 2019 Image
+      - name: Build and Push Windows 2019 Image
         uses: docker/build-push-action@v5
         with:
-          push: false
-          load: true
+          push: true
           platforms: windows/amd64
           target: windows2019
           build-args: |
@@ -48,13 +45,11 @@ jobs:
           tags: |
             infisical/infisical-agent-injector:windows-server-2019-amd64-latest
             infisical/infisical-agent-injector:windows-server-2019-amd64-${{ github.ref_name }}
-          outputs: type=image,push=false
 
-      - name: Build Windows 2022 Image
+      - name: Build and Push Windows 2022 Image
         uses: docker/build-push-action@v5
         with:
-          push: false
-          load: true
+          push: true
           platforms: windows/amd64
           target: windows2022
           build-args: |
@@ -62,17 +57,6 @@ jobs:
           tags: |
             infisical/infisical-agent-injector:windows-server-2022-amd64-latest
             infisical/infisical-agent-injector:windows-server-2022-amd64-${{ github.ref_name }}
-          outputs: type=image,push=false
-
-      # We push and create the manifest separately to ensure that all the builds were successful. This is to avoid doing partial releases in case of errors during the build
-      - name: Push all images
-        run: |
-          docker push infisical/infisical-agent-injector:linux-latest
-          docker push infisical/infisical-agent-injector:linux-${{ github.ref_name }}
-          docker push infisical/infisical-agent-injector:windows-server-2019-amd64-latest
-          docker push infisical/infisical-agent-injector:windows-server-2019-amd64-${{ github.ref_name }}
-          docker push infisical/infisical-agent-injector:windows-server-2022-amd64-latest
-          docker push infisical/infisical-agent-injector:windows-server-2022-amd64-${{ github.ref_name }}
 
       - name: Create and push manifest
         run: |
