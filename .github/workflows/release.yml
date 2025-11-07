@@ -22,7 +22,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push Linux Image
+      - name: Build and Push Linux
         uses: docker/build-push-action@v5
         with:
           push: true
@@ -31,10 +31,10 @@ jobs:
           build-args: |
             VERSION=${{ github.ref_name }}
           tags: |
-            infisical/infisical-agent-injector:linux-latest
-            infisical/infisical-agent-injector:linux-${{ github.ref_name }}
+            infisical/infisical-agent-injector:latest
+            infisical/infisical-agent-injector:${{ github.ref_name }}
 
-      - name: Build and Push Windows 2019 Image
+      - name: Build and Push Windows 2019
         uses: docker/build-push-action@v5
         with:
           push: true
@@ -43,10 +43,10 @@ jobs:
           build-args: |
             VERSION=${{ github.ref_name }}
           tags: |
-            infisical/infisical-agent-injector:windows-server-2019-amd64-latest
-            infisical/infisical-agent-injector:windows-server-2019-amd64-${{ github.ref_name }}
+            infisical/infisical-agent-injector:windows-server-2019-latest
+            infisical/infisical-agent-injector:windows-server-2019-${{ github.ref_name }}
 
-      - name: Build and Push Windows 2022 Image
+      - name: Build and Push Windows 2022
         uses: docker/build-push-action@v5
         with:
           push: true
@@ -55,23 +55,8 @@ jobs:
           build-args: |
             VERSION=${{ github.ref_name }}
           tags: |
-            infisical/infisical-agent-injector:windows-server-2022-amd64-latest
-            infisical/infisical-agent-injector:windows-server-2022-amd64-${{ github.ref_name }}
-
-      - name: Create and push manifest
-        run: |
-          docker manifest create infisical/infisical-agent-injector:latest \
-            infisical/infisical-agent-injector:linux-latest \
-            infisical/infisical-agent-injector:windows-server-2019-amd64-latest \
-            infisical/infisical-agent-injector:windows-server-2022-amd64-latest
-
-          docker manifest create infisical/infisical-agent-injector:${{ github.ref_name }} \
-            infisical/infisical-agent-injector:linux-${{ github.ref_name }} \
-            infisical/infisical-agent-injector:windows-server-2019-amd64-${{ github.ref_name }} \
-            infisical/infisical-agent-injector:windows-server-2022-amd64-${{ github.ref_name }}
-
-          docker manifest push infisical/infisical-agent-injector:latest
-          docker manifest push infisical/infisical-agent-injector:${{ github.ref_name }}
+            infisical/infisical-agent-injector:windows-server-2022-latest
+            infisical/infisical-agent-injector:windows-server-2022-${{ github.ref_name }}
 
       - name: Install Helm
         uses: azure/setup-helm@v3
