@@ -30,34 +30,29 @@ func PrettyPrintJSON(data []byte) string {
 	return string(prettyJSON)
 }
 
-func CreateDefaultResources() (corev1.ResourceRequirements, error) {
+func CreateDefaultResources(isWindows bool) (corev1.ResourceRequirements, error) {
 	// currently has the same resources and limits as the infisical gateway
 	// we might want to make this configurable in the future
 	resources := corev1.ResourceRequirements{}
-
-	// create the limits
 	limits := corev1.ResourceList{}
-	cpuLimit, err := resource.ParseQuantity("500m")
-	if err != nil {
-		return resources, fmt.Errorf("failed to parse CPU limit: %w", err)
+	requests := corev1.ResourceList{}
+
+	cpuLimit, _ := resource.ParseQuantity("500m")
+	cpuRequest, _ := resource.ParseQuantity("100m")
+
+	var memoryLimit, memoryRequest resource.Quantity
+
+	if isWindows {
+		// windows pods need much more memory than linux pods (this resolves out of memory restarts)
+		memoryLimit, _ = resource.ParseQuantity("512Mi")   // 4x more
+		memoryRequest, _ = resource.ParseQuantity("256Mi") // 2x more
+	} else {
+		memoryLimit, _ = resource.ParseQuantity("128Mi")
+		memoryRequest, _ = resource.ParseQuantity("64Mi")
 	}
-	memoryLimit, err := resource.ParseQuantity("128Mi")
-	if err != nil {
-		return resources, fmt.Errorf("failed to parse memory limit: %w", err)
-	}
+
 	limits[corev1.ResourceCPU] = cpuLimit
 	limits[corev1.ResourceMemory] = memoryLimit
-
-	// create the requests
-	requests := corev1.ResourceList{}
-	cpuRequest, err := resource.ParseQuantity("100m")
-	if err != nil {
-		return resources, fmt.Errorf("failed to parse CPU request: %w", err)
-	}
-	memoryRequest, err := resource.ParseQuantity("128Mi")
-	if err != nil {
-		return resources, fmt.Errorf("failed to parse memory request: %w", err)
-	}
 	requests[corev1.ResourceCPU] = cpuRequest
 	requests[corev1.ResourceMemory] = memoryRequest
 
