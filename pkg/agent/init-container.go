@@ -36,7 +36,7 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		return corev1.Container{}, fmt.Errorf("failed to build agent script: %w", err)
 	}
 
-	resources, err := util.CreateDefaultResources()
+	resources, err := util.CreateDefaultResources(a.isWindows)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to create resources: %w", err)
 	}
