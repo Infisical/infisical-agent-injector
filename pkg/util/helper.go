@@ -115,11 +115,19 @@ func IsWindowsPod(pod *corev1.Pod) bool {
 	return false
 }
 
-func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isWindowsPod bool) (*AgentConfig, error) {
+func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string) (*AgentConfig, error) {
+
+	if configMap == nil {
+		return nil, fmt.Errorf("config map is required")
+	}
 
 	mountPath := LinuxContainerAgentConfigVolumeMountPath
 	if isWindowsPod {
 		mountPath = WindowsContainerAgentConfigVolumeMountPath
+	}
+
+	if injectMode == InjectModeInit && configMap.Infisical.RevokeCredentialsOnShutdown {
+		return nil, fmt.Errorf("revoke credentials on shutdown is not supported when inject mode is 'init'")
 	}
 
 	var authConfig map[string]interface{} = map[string]interface{}{}
@@ -146,8 +154,9 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isW
 
 	agentConfig := &AgentConfig{
 		Infisical: InfisicalConfig{
-			Address:       configMap.Infisical.Address,
-			ExitAfterAuth: exitAfterAuth,
+			Address:                     configMap.Infisical.Address,
+			ExitAfterAuth:               exitAfterAuth,
+			RevokeCredentialsOnShutdown: configMap.Infisical.RevokeCredentialsOnShutdown,
 		},
 		Templates: configMap.Templates,
 		Auth: AuthConfig{
@@ -219,9 +228,9 @@ func getAgentAuthDataFromConfigMap(configMap ConfigMap, isWindowsPod bool) (Star
 	return data, nil
 }
 
-func BuildAgentScript(configMap ConfigMap, exitAfterAuth bool, isWindowsPod bool) (string, error) {
+func BuildAgentScript(configMap ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string) (string, error) {
 
-	parsedAgentConfig, err := BuildAgentConfigFromConfigMap(&configMap, exitAfterAuth, isWindowsPod)
+	parsedAgentConfig, err := BuildAgentConfigFromConfigMap(&configMap, exitAfterAuth, isWindowsPod, injectMode)
 	if err != nil {
 		return "", fmt.Errorf("failed to build agent config: %w", err)
 	}

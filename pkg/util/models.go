@@ -74,8 +74,3 @@ type StartupScriptAuth struct {
 	Username   string
 	Password   string
 }
-
-type AgentScriptConfig struct {
-	Script            string
-	ParsedAgentConfig *AgentConfig
-}

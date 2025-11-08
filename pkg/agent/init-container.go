@@ -31,7 +31,7 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 
 	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
 
-	script, err := util.BuildAgentScript(*a.configMap, true, a.isWindows)
+	script, err := util.BuildAgentScript(*a.configMap, true, a.isWindows, a.injectMode)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to build agent script: %w", err)
 	}
