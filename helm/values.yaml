@@ -12,11 +12,10 @@ failurePolicy: Ignore
 
 image:
   repository: infisical/infisical-agent-injector
-  tag: v0.1.4
+  tag: v0.1.5
 
 # If need be, you can run the Agent Injector itself on Windows nodes if your cluster supports it.
 # This is achieved by setting the nodeSelector to kubernetes.io/os: windows.
 
-# Example:
-# nodeSelector:
-#   kubernetes.io/os: windows
+nodeSelector:
+  kubernetes.io/os: linux # or windows if you wish to run the agent injector on windows nodes
