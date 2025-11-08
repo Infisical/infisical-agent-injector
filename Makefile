@@ -2,7 +2,7 @@
 
 # Variables
 REGISTRY_NAME := local-registry
-REGISTRY_PORT := 8443
+REGISTRY_PORT := 8447
 RANDOM_STRING := $(shell date +%s | sha256sum | base64 | head -c 8 | tr '[:upper:]' '[:lower:]')
 IMAGE_NAME := agent-injector-$(RANDOM_STRING)
 LOCAL_IMAGE := localhost:$(REGISTRY_PORT)/$(IMAGE_NAME)
@@ -11,9 +11,7 @@ RELEASE_NAME := agent-injector
 
 # ? Note(Daniel): If need be, you can change this to windows/amd64 to build the windows image.
 PLATFORM := linux/amd64 # linux/amd64|windows/amd64
-# BUILD_TARGET := linux # linux|windows2019|windows2022
-
-#	docker build --target $(BUILD_TARGET) --platform $(PLATFORM) -t $(IMAGE_NAME):latest -f Dockerfile . 
+BUILD_TARGET := linux # linux|windows2019|windows2022
 
 
 # Default target
@@ -41,7 +39,7 @@ registry:
 # Build the docker image
 build:
 	@echo "Building Docker image: $(IMAGE_NAME) for $(PLATFORM)..."
-	docker build --platform $(PLATFORM) -t $(IMAGE_NAME):latest -f Dockerfile .
+	docker build --target $(BUILD_TARGET) --platform $(PLATFORM) -t $(IMAGE_NAME):latest -f Dockerfile . 
 	docker tag $(IMAGE_NAME):latest $(LOCAL_IMAGE):latest
 
 # Push image to local registry
