@@ -1,8 +1,9 @@
 package util
 
 type InfisicalConfig struct {
-	Address       string `yaml:"address"`
-	ExitAfterAuth bool   `yaml:"exit-after-auth"`
+	Address                     string `yaml:"address"`
+	ExitAfterAuth               bool   `yaml:"exit-after-auth"`
+	RevokeCredentialsOnShutdown bool   `yaml:"revoke-credentials-on-shutdown"`
 }
 
 type Template struct {
@@ -49,8 +50,9 @@ type LdapAuthConfig struct {
 
 type ConfigMap struct {
 	Infisical struct {
-		Address string `yaml:"address"`
-		Auth    struct {
+		Address                     string `yaml:"address"`
+		RevokeCredentialsOnShutdown bool   `yaml:"revoke-credentials-on-shutdown"`
+		Auth                        struct {
 			Type   string                 `yaml:"type"` // Only kubernetes and ldap-auth is supported for now
 			Config map[string]interface{} `yaml:"config"`
 		} `yaml:"auth"`
@@ -71,4 +73,9 @@ type StartupScriptAuth struct {
 	IdentityID string
 	Username   string
 	Password   string
+}
+
+type AgentScriptConfig struct {
+	Script            string
+	ParsedAgentConfig *AgentConfig
 }

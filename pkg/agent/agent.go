@@ -279,18 +279,10 @@ func (a *Agent) PatchPod() ([]byte, error) {
 }
 
 func (a *Agent) createLifecycle() corev1.Lifecycle {
-	// todo: add logic for cleaning up access token on pod shutdown
-	// todo(daniel): explore how we can get the access token from the agent itself, since the injector doesn't have access to the token.
 
-	// approach 1: can the injector potentially read from volume mounts in the managed pods
+	// No preStop needed - k8s will send SIGTERM automatically
+	// k8s sends the sigterm to PID 1, so in the startup script we forward the signal to the agent process (see linux-container-startup.sh.tmpl)
 
-	// approach 2: can we take the user-provided credentials first, and then authenticate in the agent itself, and then pass the token to the injector? then we can revoke the token directly afterwards on pod shutdown.
-	// however this wouldn't work for leases as they are provisioned dynamically by the agent itself.
-
-	// approach 3: a new command in the CLI that when run terminates the agent if its running, and deletes the access token and any dynamic secret leases?
-	// this could be good, because on lifecycle termination we can run a command inside the agent container itself
-
-	// question for all of the above: do we need to revoke the token on init containers? I don't think we can
 	return corev1.Lifecycle{}
 }
 
