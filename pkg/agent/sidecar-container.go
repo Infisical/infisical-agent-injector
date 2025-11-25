@@ -8,11 +8,6 @@ import (
 )
 
 func (a *Agent) ContainerSidecar() (corev1.Container, error) {
-	agentConfigVolumeMountPath := util.LinuxContainerWorkDirVolumeMountPath
-	if a.isWindows {
-		agentConfigVolumeMountPath = util.WindowsContainerWorkDirVolumeMountPath
-	}
-
 	volumeMounts := []corev1.VolumeMount{}
 
 	if !a.isWindows {
@@ -23,25 +18,16 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 		})
 	}
 
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      util.ContainerWorkDirVolumeName,
-		MountPath: agentConfigVolumeMountPath,
-		ReadOnly:  false,
-	})
-
 	// This will add the secret volume mounts
 	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
 
-	script, err := util.BuildAgentScript(*a.configMap, false, a.isWindows, a.injectMode)
+	script, envVars, err := util.BuildAgentScript(*a.configMap, false, a.isWindows, a.injectMode, a.cachingEnabled, a.pod.Annotations)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to build agent script: %w", err)
 	}
 
-	resources, err := util.CreateDefaultResources(a.isWindows)
-	if err != nil {
-		return corev1.Container{}, err
-	}
-	lifecycle := a.createLifecycle()
+	resources := a.ResourceRequirements()
+	lifecycle := a.Lifecycle()
 
 	command := []string{"/bin/sh", "-ec"}
 	if a.isWindows {
@@ -49,13 +35,14 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 	}
 
 	newContainer := corev1.Container{
-		Name:         "infisical-agent",
+		Name:         util.SidecarContainerName,
 		Image:        a.agentImage,
 		Resources:    resources,
 		VolumeMounts: volumeMounts,
 		Lifecycle:    &lifecycle,
 		Command:      command,
 		Args:         []string{script},
+		Env:          envVars,
 	}
 
 	return newContainer, nil
