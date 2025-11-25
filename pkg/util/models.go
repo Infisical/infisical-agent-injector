@@ -1,9 +1,10 @@
 package util
 
 type InfisicalConfig struct {
-	Address                     string `yaml:"address"`
-	ExitAfterAuth               bool   `yaml:"exit-after-auth"`
-	RevokeCredentialsOnShutdown bool   `yaml:"revoke-credentials-on-shutdown"`
+	Address                     string       `yaml:"address"`
+	ExitAfterAuth               bool         `yaml:"exit-after-auth"`
+	RevokeCredentialsOnShutdown bool         `yaml:"revoke-credentials-on-shutdown"`
+	RetryConfig                 *RetryConfig `yaml:"retry-strategy,omitempty"`
 }
 
 type Template struct {
@@ -18,8 +19,7 @@ type Template struct {
 }
 
 type AuthConfig struct {
-	Type   string      `yaml:"type"`
-	Config interface{} `yaml:"config"`
+	Type string `yaml:"type"`
 }
 
 type Sink struct {
@@ -31,11 +31,28 @@ type SinkDetails struct {
 	Path string `yaml:"path"`
 }
 
+type PersistentCacheConfig struct {
+	Type                    string `yaml:"type"`
+	ServiceAccountTokenPath string `yaml:"service-account-token-path"`
+	Path                    string `yaml:"path"`
+}
+
+type CacheConfig struct {
+	Persistent *PersistentCacheConfig `yaml:"persistent,omitempty"`
+}
+
+type RetryConfig struct {
+	MaxRetries int    `yaml:"max-retries"`
+	BaseDelay  string `yaml:"base-delay"`
+	MaxDelay   string `yaml:"max-delay"`
+}
+
 type AgentConfig struct {
 	Infisical InfisicalConfig `yaml:"infisical"`
-	Auth      AuthConfig      `yaml:"auth"`
 	Sinks     []Sink          `yaml:"sinks"`
 	Templates []Template      `yaml:"templates"`
+	Auth      AuthConfig      `yaml:"auth"`
+	Cache     CacheConfig     `yaml:"cache,omitempty"`
 }
 
 type KubernetesAuthConfig struct {
@@ -56,16 +73,15 @@ type ConfigMap struct {
 			Type   string                 `yaml:"type"` // Only kubernetes and ldap-auth is supported for now
 			Config map[string]interface{} `yaml:"config"`
 		} `yaml:"auth"`
+		RetryConfig *RetryConfig `yaml:"retry-strategy,omitempty"`
 	} `yaml:"infisical"`
-	Templates []Template `yaml:"templates"`
+	Templates []Template  `yaml:"templates"`
+	Cache     CacheConfig `yaml:"cache,omitempty"`
 }
 
 type StartupScriptTemplateData struct {
-	ConfigPath      string
-	AgentConfigYaml string
-	ExitAfterAuth   bool
-	TimeoutSeconds  int
-	Auth            StartupScriptAuth
+	ExitAfterAuth  bool
+	TimeoutSeconds int
 }
 
 type StartupScriptAuth struct {

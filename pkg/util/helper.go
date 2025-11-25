@@ -2,15 +2,15 @@ package util
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"strconv"
 	"text/template"
 
 	"github.com/Infisical/infisical-agent-injector/pkg/templates"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func PrettyPrintJSON(data []byte) string {
@@ -28,39 +28,6 @@ func PrettyPrintJSON(data []byte) string {
 	}
 
 	return string(prettyJSON)
-}
-
-func CreateDefaultResources(isWindows bool) (corev1.ResourceRequirements, error) {
-	// currently has the same resources and limits as the infisical gateway
-	// we might want to make this configurable in the future
-	resources := corev1.ResourceRequirements{}
-	limits := corev1.ResourceList{}
-	requests := corev1.ResourceList{}
-
-	cpuLimit, _ := resource.ParseQuantity("500m")
-	cpuRequest, _ := resource.ParseQuantity("100m")
-
-	var memoryLimit, memoryRequest resource.Quantity
-
-	if isWindows {
-		// windows pods need much more memory than linux pods (this resolves out of memory restarts)
-		memoryLimit, _ = resource.ParseQuantity("512Mi")   // 4x more
-		memoryRequest, _ = resource.ParseQuantity("256Mi") // 2x more
-	} else {
-		memoryLimit, _ = resource.ParseQuantity("128Mi")
-		memoryRequest, _ = resource.ParseQuantity("64Mi")
-	}
-
-	limits[corev1.ResourceCPU] = cpuLimit
-	limits[corev1.ResourceMemory] = memoryLimit
-	requests[corev1.ResourceCPU] = cpuRequest
-	requests[corev1.ResourceMemory] = memoryRequest
-
-	// set the limits and requests on the resource requirements
-	resources.Limits = limits
-	resources.Requests = requests
-
-	return resources, nil
 }
 
 func IsWindowsPod(pod *corev1.Pod) bool {
@@ -115,54 +82,122 @@ func IsWindowsPod(pod *corev1.Pod) bool {
 	return false
 }
 
-func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string) (*AgentConfig, error) {
+func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string, cachingEnabled bool, podAnnotations map[string]string) (*AgentConfig, []corev1.EnvVar, error) {
 
 	if configMap == nil {
-		return nil, fmt.Errorf("config map is required")
-	}
-
-	mountPath := LinuxContainerAgentConfigVolumeMountPath
-	if isWindowsPod {
-		mountPath = WindowsContainerAgentConfigVolumeMountPath
+		return nil, nil, fmt.Errorf("config map is required")
 	}
 
 	if injectMode == InjectModeInit && configMap.Infisical.RevokeCredentialsOnShutdown {
-		return nil, fmt.Errorf("revoke credentials on shutdown is not supported when inject mode is 'init'")
+		return nil, nil, fmt.Errorf("revoke credentials on shutdown is not supported when inject mode is 'init'")
 	}
 
-	var authConfig map[string]interface{} = map[string]interface{}{}
+	var envVars []corev1.EnvVar = []corev1.EnvVar{}
 
 	delimiter := "/"
 	if isWindowsPod {
 		delimiter = "\\"
 	}
 
+	mountPath := LinuxContainerWorkDirVolumeMountPath
+	if isWindowsPod {
+		mountPath = WindowsContainerWorkDirVolumeMountPath
+	}
+
 	if configMap.Infisical.Auth.Type == KubernetesAuthType {
-		authConfig = map[string]interface{}{
-			// hacky. but we need to get around the file-based identity ID storage somehow
-			"identity-id": fmt.Sprintf("%s%sidentity-id", mountPath, delimiter),
+
+		identityID, ok := configMap.Infisical.Auth.Config["identity-id"].(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("identity-id is required for kubernetes auth")
 		}
+
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "INFISICAL_MACHINE_IDENTITY_ID",
+			Value: identityID,
+		})
+
 	} else if configMap.Infisical.Auth.Type == LdapAuthType {
-		authConfig = map[string]interface{}{
-			"identity-id": fmt.Sprintf("%s%sidentity-id", mountPath, delimiter),
-			"username":    fmt.Sprintf("%s%susername", mountPath, delimiter),
-			"password":    fmt.Sprintf("%s%spassword", mountPath, delimiter),
+
+		identityID, ok := configMap.Infisical.Auth.Config["identity-id"].(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("identity-id is required for ldap auth")
 		}
+
+		username, ok := configMap.Infisical.Auth.Config["username"].(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("username is required for ldap auth")
+		}
+
+		password, ok := configMap.Infisical.Auth.Config["password"].(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("password is required for ldap auth")
+		}
+
+		envVars = append(
+			envVars,
+			corev1.EnvVar{
+				Name:  "INFISICAL_MACHINE_IDENTITY_ID",
+				Value: identityID,
+			}, corev1.EnvVar{
+				Name:  "INFISICAL_LDAP_USERNAME",
+				Value: username,
+			}, corev1.EnvVar{
+				Name:  "INFISICAL_LDAP_PASSWORD",
+				Value: password,
+			},
+		)
+
 	} else {
-		return nil, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
+		return nil, nil, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
+	}
+
+	revokeCredentialsOnShutdown := configMap.Infisical.RevokeCredentialsOnShutdown || podAnnotations[AnnotationRevokeCredentialsOnShutdown] == "true"
+
+	// confgirue retry config from annotations or configmap
+	retryCfg := &RetryConfig{}
+
+	if podAnnotations[AnnotationAgentClientMaxRetries] != "" {
+		annotatedMaxRetries, err := strconv.Atoi(podAnnotations[AnnotationAgentClientMaxRetries])
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse max retries: %w", err)
+		}
+		retryCfg.MaxRetries = annotatedMaxRetries
+	}
+
+	if podAnnotations[AnnotationAgentClientBaseDelay] != "" {
+		retryCfg.BaseDelay = podAnnotations[AnnotationAgentClientBaseDelay]
+	}
+
+	if podAnnotations[AnnotationAgentClientMaxDelay] != "" {
+		retryCfg.MaxDelay = podAnnotations[AnnotationAgentClientMaxDelay]
+	}
+
+	if configMap.Infisical.RetryConfig != nil {
+
+		if configMap.Infisical.RetryConfig.BaseDelay != "" {
+			retryCfg.BaseDelay = configMap.Infisical.RetryConfig.BaseDelay
+		}
+		if configMap.Infisical.RetryConfig.MaxDelay != "" {
+			retryCfg.MaxDelay = configMap.Infisical.RetryConfig.MaxDelay
+		}
+		if configMap.Infisical.RetryConfig.MaxRetries != 0 {
+			retryCfg.MaxRetries = configMap.Infisical.RetryConfig.MaxRetries
+		}
 	}
 
 	agentConfig := &AgentConfig{
+		Auth: AuthConfig{
+			Type: configMap.Infisical.Auth.Type,
+		},
 		Infisical: InfisicalConfig{
 			Address:                     configMap.Infisical.Address,
 			ExitAfterAuth:               exitAfterAuth,
-			RevokeCredentialsOnShutdown: configMap.Infisical.RevokeCredentialsOnShutdown,
+			RevokeCredentialsOnShutdown: revokeCredentialsOnShutdown && !exitAfterAuth, // if set in configmap or annotation. only enable if sidecar container,
+			RetryConfig:                 retryCfg,
 		},
 		Templates: configMap.Templates,
-		Auth: AuthConfig{
-			Type:   configMap.Infisical.Auth.Type,
-			Config: authConfig,
-		},
+		// we manage the sink files for the user so they won't need to configure this.
+		// also makes it easier in terms of volume management.
 		Sinks: []Sink{
 			{
 				Type: "file",
@@ -173,91 +208,72 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isW
 		},
 	}
 
-	return agentConfig, nil
+	if cachingEnabled {
+		// allow the user to configure cache themselves if they they dont want the default behavior of using the annotation.
+		if configMap.Cache.Persistent != nil {
+			agentConfig.Cache = CacheConfig{
+				Persistent: &PersistentCacheConfig{
+					Type:                    configMap.Cache.Persistent.Type,
+					ServiceAccountTokenPath: configMap.Cache.Persistent.ServiceAccountTokenPath,
+					Path:                    configMap.Cache.Persistent.Path,
+				},
+			}
+		} else {
+			defaultServiceAccountTokenPath := LinuxKubernetesServiceAccountTokenPath
+			if isWindowsPod {
+				defaultServiceAccountTokenPath = WindowsKubernetesServiceAccountTokenPath
+			}
+
+			agentConfig.Cache = CacheConfig{
+				Persistent: &PersistentCacheConfig{
+					Type:                    "kubernetes",
+					ServiceAccountTokenPath: defaultServiceAccountTokenPath,
+					Path:                    fmt.Sprintf("%s%scache", mountPath, delimiter),
+				},
+			}
+		}
+	}
+
+	return agentConfig, envVars, nil
 }
 
-func getAgentAuthDataFromConfigMap(configMap ConfigMap, isWindowsPod bool) (StartupScriptAuth, error) {
-	escapeForPowerShell := func(s string) string {
-		s = strings.ReplaceAll(s, "'", "''") // single quotes need doubling
-		s = strings.ReplaceAll(s, "`", "``") // backticks need doubling
-		return s
-	}
+func BuildAgentScript(configMap ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string, cachingEnabled bool, podAnnotations map[string]string) (string, []corev1.EnvVar, error) {
 
-	data := StartupScriptAuth{}
-
-	// Extract and escape auth config based on type
-	if configMap.Infisical.Auth.Type == KubernetesAuthType {
-		if identityID, ok := configMap.Infisical.Auth.Config["identity-id"].(string); ok {
-			data.IdentityID = identityID
-		}
-		if data.IdentityID == "" {
-			return StartupScriptAuth{}, fmt.Errorf("identity-id is required for kubernetes auth")
-		}
-
-		data.Type = KubernetesAuthType
-		if isWindowsPod {
-			data.IdentityID = escapeForPowerShell(data.IdentityID)
-		}
-	} else if configMap.Infisical.Auth.Type == LdapAuthType {
-		if identityID, ok := configMap.Infisical.Auth.Config["identity-id"].(string); ok {
-			data.IdentityID = identityID
-		}
-		if username, ok := configMap.Infisical.Auth.Config["username"].(string); ok {
-			data.Username = username
-		}
-		if password, ok := configMap.Infisical.Auth.Config["password"].(string); ok {
-			data.Password = password
-		}
-
-		if data.IdentityID == "" || data.Username == "" || data.Password == "" {
-			return StartupScriptAuth{}, fmt.Errorf("identity-id, username, and password are required for ldap auth")
-		}
-
-		data.Type = LdapAuthType
-		if isWindowsPod {
-			data.IdentityID = escapeForPowerShell(data.IdentityID)
-			data.Username = escapeForPowerShell(data.Username)
-			data.Password = escapeForPowerShell(data.Password)
-		}
-	}
-
-	if data.Type == "" {
-		return StartupScriptAuth{}, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
-	}
-
-	return data, nil
-}
-
-func BuildAgentScript(configMap ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string) (string, error) {
-
-	parsedAgentConfig, err := BuildAgentConfigFromConfigMap(&configMap, exitAfterAuth, isWindowsPod, injectMode)
+	parsedAgentConfig, envVars, err := BuildAgentConfigFromConfigMap(&configMap, exitAfterAuth, isWindowsPod, injectMode, cachingEnabled, podAnnotations)
 	if err != nil {
-		return "", fmt.Errorf("failed to build agent config: %w", err)
+		return "", nil, fmt.Errorf("failed to build agent config: %w", err)
 	}
 
 	agentConfigYaml, err := yaml.Marshal(parsedAgentConfig)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal yaml agent config: %w", err)
+		return "", nil, fmt.Errorf("failed to marshal yaml agent config: %w", err)
 	}
 
-	authData, err := getAgentAuthDataFromConfigMap(configMap, isWindowsPod)
-	if err != nil {
-		return "", fmt.Errorf("failed to get auth data: %w", err)
-	}
+	base64AgentConfigYaml := base64.StdEncoding.EncodeToString(agentConfigYaml)
+
+	envVars = append(envVars, corev1.EnvVar{
+		Name:  "INFISICAL_AGENT_CONFIG_BASE64",
+		Value: base64AgentConfigYaml,
+	})
 
 	if isWindowsPod {
-		return buildWindowsAgentScript(exitAfterAuth, string(agentConfigYaml), authData)
+		windowsScript, err := buildWindowsAgentScript(exitAfterAuth)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to build windows agent script: %w", err)
+		}
+		return windowsScript, envVars, nil
 	}
-	return buildLinuxAgentScript(exitAfterAuth, string(agentConfigYaml), authData)
+	linuxScript, err := buildLinuxAgentScript(exitAfterAuth)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build linux agent script: %w", err)
+	}
+	return linuxScript, envVars, nil
 }
 
-func buildLinuxAgentScript(exitAfterAuth bool, agentConfigYaml string, authData StartupScriptAuth) (string, error) {
+func buildLinuxAgentScript(exitAfterAuth bool) (string, error) {
 	data := StartupScriptTemplateData{
-		ConfigPath:      LinuxContainerAgentConfigVolumeMountPath,
-		AgentConfigYaml: agentConfigYaml,
-		ExitAfterAuth:   exitAfterAuth,
-		TimeoutSeconds:  180,
-		Auth:            authData,
+		ExitAfterAuth:  exitAfterAuth,
+		TimeoutSeconds: 180,
 	}
 
 	tmpl, err := template.ParseFS(templates.TemplatesFS, "linux-container-startup.sh.tmpl")
@@ -273,16 +289,10 @@ func buildLinuxAgentScript(exitAfterAuth bool, agentConfigYaml string, authData 
 	return buf.String(), nil
 }
 
-func buildWindowsAgentScript(exitAfterAuth bool, agentConfigYaml string, authData StartupScriptAuth) (string, error) {
-	// escape @ symbols for PowerShell here-strings
-	escapedYaml := strings.ReplaceAll(agentConfigYaml, "@", "``@")
-
+func buildWindowsAgentScript(exitAfterAuth bool) (string, error) {
 	data := StartupScriptTemplateData{
-		ConfigPath:      WindowsContainerAgentConfigVolumeMountPath,
-		AgentConfigYaml: escapedYaml,
-		ExitAfterAuth:   exitAfterAuth,
-		TimeoutSeconds:  180,
-		Auth:            authData,
+		ExitAfterAuth:  exitAfterAuth,
+		TimeoutSeconds: 180,
 	}
 
 	tmpl, err := template.ParseFS(templates.TemplatesFS, "windows-container-startup.ps1.tmpl")
