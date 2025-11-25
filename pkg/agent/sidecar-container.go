@@ -21,7 +21,7 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 	// This will add the secret volume mounts
 	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
 
-	script, envVars, err := util.BuildAgentScript(*a.configMap, false, a.isWindows, a.injectMode, a.cachingEnabled, a.pod.Annotations)
+	script, envVars, err := util.BuildAgentScript(a.k8s, a.pod, a.configMap, false, a.isWindows, a.injectMode, a.cachingEnabled, a.pod.Annotations)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to build agent script: %w", err)
 	}

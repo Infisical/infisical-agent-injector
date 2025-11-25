@@ -162,7 +162,7 @@ func (h *Handler) Mutate(req *admissionv1.AdmissionRequest) MutateResponse {
 
 	log.Printf("[request-id=%s] Injecting into pod: %s in namespace: %s", requestId, podName, pod.Namespace)
 
-	agent, err := agent.NewAgent(&pod, agentConfig)
+	agent, err := agent.NewAgent(h.Client, &pod, agentConfig)
 	if err != nil {
 		log.Printf("[request-id=%s] Error creating agent for pod %s in namespace %s: %s", requestId, podName, pod.Namespace, err)
 		return admissionsApiError(req.UID, err)

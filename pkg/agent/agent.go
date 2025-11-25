@@ -12,9 +12,11 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/client-go/kubernetes"
 )
 
 type Agent struct {
+	k8s                       *kubernetes.Clientset
 	pod                       *corev1.Pod
 	configMap                 *util.ConfigMap
 	serviceAccountTokenVolume *ServiceAccountTokenVolume
@@ -24,7 +26,7 @@ type Agent struct {
 	isWindows                 bool
 }
 
-func NewAgent(pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
+func NewAgent(k8s *kubernetes.Clientset, pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
 
 	if configMap == nil {
 		return nil, fmt.Errorf("config map is required")
@@ -70,6 +72,7 @@ func NewAgent(pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
 
 	return &Agent{
 		pod:                       pod,
+		k8s:                       k8s,
 		configMap:                 configMap,
 		serviceAccountTokenVolume: serviceAccountTokenVolume,
 		injectMode:                injectMode,

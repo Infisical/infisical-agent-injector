@@ -2,15 +2,20 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"text/template"
+	"time"
 
 	"github.com/Infisical/infisical-agent-injector/pkg/templates"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 func PrettyPrintJSON(data []byte) string {
@@ -82,7 +87,74 @@ func IsWindowsPod(pod *corev1.Pod) bool {
 	return false
 }
 
-func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string, cachingEnabled bool, podAnnotations map[string]string) (*AgentConfig, []corev1.EnvVar, error) {
+type EnvironmentVariable struct {
+	Name  string
+	Value string
+}
+
+func CreateSensitiveEnvironmentVariable(k8s *kubernetes.Clientset, pod *corev1.Pod, envVars []EnvironmentVariable) ([]corev1.EnvVar, error) {
+
+	secretName := fmt.Sprintf("infisical-agent-injector-secret-%s-%s-%d", pod.Namespace, pod.Name, time.Now().Unix())
+
+	envVarsMap := make(map[string]string)
+	for _, envVar := range envVars {
+		envVarsMap[envVar.Name] = envVar.Value
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: pod.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "v1",
+					Kind:       "Pod",
+					Name:       pod.Name,
+					UID:        pod.UID,
+				},
+			},
+		},
+		Type:       corev1.SecretTypeOpaque,
+		StringData: envVarsMap,
+	}
+
+	// Create or update the secret
+
+	// try to get the secret
+
+	_, err := k8s.CoreV1().Secrets(pod.Namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+
+	// create the secret if it doesn't exist
+	if err != nil && errors.IsNotFound(err) {
+		_, err := k8s.CoreV1().Secrets(pod.Namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+		if err != nil && !errors.IsAlreadyExists(err) {
+			return nil, fmt.Errorf("failed to create secret: %w", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to get secret: %w", err)
+	}
+
+	environmentVariables := []corev1.EnvVar{}
+
+	for _, envVar := range envVars {
+
+		environmentVariables = append(environmentVariables, corev1.EnvVar{
+			Name: envVar.Name,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: secretName,
+					},
+					Key: envVar.Name,
+				},
+			},
+		})
+	}
+
+	return environmentVariables, nil
+}
+
+func BuildAgentConfigFromConfigMap(k8s *kubernetes.Clientset, pod *corev1.Pod, configMap *ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string, cachingEnabled bool, podAnnotations map[string]string) (*AgentConfig, []corev1.EnvVar, error) {
 
 	if configMap == nil {
 		return nil, nil, fmt.Errorf("config map is required")
@@ -92,7 +164,7 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isW
 		return nil, nil, fmt.Errorf("revoke credentials on shutdown is not supported when inject mode is 'init'")
 	}
 
-	var envVars []corev1.EnvVar = []corev1.EnvVar{}
+	var envVars []EnvironmentVariable = []EnvironmentVariable{}
 
 	delimiter := "/"
 	if isWindowsPod {
@@ -111,7 +183,7 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isW
 			return nil, nil, fmt.Errorf("identity-id is required for kubernetes auth")
 		}
 
-		envVars = append(envVars, corev1.EnvVar{
+		envVars = append(envVars, EnvironmentVariable{
 			Name:  "INFISICAL_MACHINE_IDENTITY_ID",
 			Value: identityID,
 		})
@@ -135,13 +207,13 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isW
 
 		envVars = append(
 			envVars,
-			corev1.EnvVar{
+			EnvironmentVariable{
 				Name:  "INFISICAL_MACHINE_IDENTITY_ID",
 				Value: identityID,
-			}, corev1.EnvVar{
+			}, EnvironmentVariable{
 				Name:  "INFISICAL_LDAP_USERNAME",
 				Value: username,
-			}, corev1.EnvVar{
+			}, EnvironmentVariable{
 				Name:  "INFISICAL_LDAP_PASSWORD",
 				Value: password,
 			},
@@ -234,12 +306,17 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isW
 		}
 	}
 
-	return agentConfig, envVars, nil
+	environmentVariables, err := CreateSensitiveEnvironmentVariable(k8s, pod, envVars)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create sensitive environment variables: %w", err)
+	}
+
+	return agentConfig, environmentVariables, nil
 }
 
-func BuildAgentScript(configMap ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string, cachingEnabled bool, podAnnotations map[string]string) (string, []corev1.EnvVar, error) {
+func BuildAgentScript(k8s *kubernetes.Clientset, pod *corev1.Pod, configMap *ConfigMap, exitAfterAuth bool, isWindowsPod bool, injectMode string, cachingEnabled bool, podAnnotations map[string]string) (string, []corev1.EnvVar, error) {
 
-	parsedAgentConfig, envVars, err := BuildAgentConfigFromConfigMap(&configMap, exitAfterAuth, isWindowsPod, injectMode, cachingEnabled, podAnnotations)
+	parsedAgentConfig, envVars, err := BuildAgentConfigFromConfigMap(k8s, pod, configMap, exitAfterAuth, isWindowsPod, injectMode, cachingEnabled, podAnnotations)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to build agent config: %w", err)
 	}
