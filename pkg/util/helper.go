@@ -153,7 +153,7 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isW
 
 	revokeCredentialsOnShutdown := configMap.Infisical.RevokeCredentialsOnShutdown || podAnnotations[AnnotationRevokeCredentialsOnShutdown] == "true"
 
-	// confgirue retry config from annotations or configmap
+	// configure retry config from annotations or configmap
 	retryCfg := &RetryConfig{}
 
 	if podAnnotations[AnnotationAgentClientMaxRetries] != "" {

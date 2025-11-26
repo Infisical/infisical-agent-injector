@@ -82,18 +82,14 @@ func NewAgent(pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
 func (a *Agent) ContainerVolumeMounts(existingMounts []corev1.VolumeMount) []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
+	mountPath := util.LinuxContainerWorkDirVolumeMountPath
+	if a.isWindows {
+		mountPath = util.WindowsContainerWorkDirVolumeMountPath
+	}
+
 	if !slices.ContainsFunc(existingMounts, func(mount corev1.VolumeMount) bool {
-		mountPath := util.LinuxContainerWorkDirVolumeMountPath
-		if a.isWindows {
-			mountPath = util.WindowsContainerWorkDirVolumeMountPath
-		}
 		return mount.MountPath == mountPath && mount.Name == util.ContainerWorkDirMountName
 	}) {
-
-		mountPath := util.LinuxContainerWorkDirVolumeMountPath
-		if a.isWindows {
-			mountPath = util.WindowsContainerWorkDirVolumeMountPath
-		}
 
 		// we mount this on the users pod
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
@@ -368,7 +364,7 @@ func (a *Agent) ResourceRequirements() (corev1.ResourceRequirements, error) {
 	// we don't set defaults for ephemeral storage as it first became generally available in k8s 1.25.
 	// additionally we want to let the cluster dictacte the pods ephemeral storage limits if not explicitly provided by the user.
 	var ephemeralLimit, ephemeralRequest resource.Quantity
-	var empherealLimitSet, empherealRequestSet bool
+	var ephemeralLimitSet, ephemeralRequestSet bool
 
 	// default limits
 	if a.isWindows {
@@ -391,7 +387,7 @@ func (a *Agent) ResourceRequirements() (corev1.ResourceRequirements, error) {
 			return corev1.ResourceRequirements{}, fmt.Errorf("failed to parse ephemeral limit: %w", err)
 		}
 		ephemeralLimit = limit
-		empherealLimitSet = true
+		ephemeralLimitSet = true
 	}
 
 	// user-defined ephemeral storage requests
@@ -401,7 +397,7 @@ func (a *Agent) ResourceRequirements() (corev1.ResourceRequirements, error) {
 			return corev1.ResourceRequirements{}, fmt.Errorf("failed to parse ephemeral request: %w", err)
 		}
 		ephemeralRequest = request
-		empherealRequestSet = true
+		ephemeralRequestSet = true
 	}
 
 	// user-defined CPU limits
@@ -442,13 +438,13 @@ func (a *Agent) ResourceRequirements() (corev1.ResourceRequirements, error) {
 
 	limits[corev1.ResourceCPU] = cpuLimit
 	limits[corev1.ResourceMemory] = memoryLimit
-	if empherealLimitSet {
+	if ephemeralLimitSet {
 		limits[corev1.ResourceEphemeralStorage] = ephemeralLimit
 	}
 
 	requests[corev1.ResourceCPU] = cpuRequest
 	requests[corev1.ResourceMemory] = memoryRequest
-	if empherealRequestSet {
+	if ephemeralRequestSet {
 		requests[corev1.ResourceEphemeralStorage] = ephemeralRequest
 	}
 
