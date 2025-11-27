@@ -8,12 +8,6 @@ import (
 )
 
 func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
-
-	agentConfigVolumeMountPath := util.LinuxContainerWorkDirVolumeMountPath
-	if a.isWindows {
-		agentConfigVolumeMountPath = util.WindowsContainerWorkDirVolumeMountPath
-	}
-
 	volumeMounts := []corev1.VolumeMount{}
 
 	if !a.isWindows {
@@ -23,22 +17,17 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 			ReadOnly:  true,
 		})
 	}
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      util.ContainerWorkDirVolumeName,
-		MountPath: agentConfigVolumeMountPath,
-		ReadOnly:  false,
-	})
 
 	volumeMounts = append(volumeMounts, a.ContainerVolumeMounts(volumeMounts)...)
 
-	script, err := util.BuildAgentScript(*a.configMap, true, a.isWindows, a.injectMode)
+	script, envVars, err := util.BuildAgentScript(*a.configMap, true, a.isWindows, a.injectMode, a.cachingEnabled, a.pod.Annotations)
 	if err != nil {
 		return corev1.Container{}, fmt.Errorf("failed to build agent script: %w", err)
 	}
 
-	resources, err := util.CreateDefaultResources(a.isWindows)
+	resources, err := a.ResourceRequirements()
 	if err != nil {
-		return corev1.Container{}, fmt.Errorf("failed to create resources: %w", err)
+		return corev1.Container{}, fmt.Errorf("failed to get resource requirements: %w", err)
 	}
 
 	command := []string{"/bin/sh", "-c"}
@@ -52,6 +41,7 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		Resources:    resources,
 		VolumeMounts: volumeMounts,
 		Command:      command,
+		Env:          envVars,
 		Args:         []string{script},
 	}
 

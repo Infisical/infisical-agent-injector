@@ -5,7 +5,7 @@ Fast local development workflow using a local Docker registry.
 ## Quick Start
 
 ```bash
-make run-dev
+make up-dev
 ```
 
 That's it! This will:
@@ -26,7 +26,7 @@ The Makefile spins up a local Docker registry container on port `8443`. This reg
 
 ### Fast Build Loop
 
-Each time you run `make run-dev`:
+Each time you run `make up-dev`:
 1. A unique image name is generated (e.g., `agent-injector-a1b2c3d4`)
 2. Your code is built into a Docker image
 3. The image is pushed to your local registry
@@ -41,7 +41,7 @@ Each time you run `make run-dev`:
 vim main.go
 
 # 2. Test them
-make run-dev
+make up-dev
 
 # 3. Watch the logs
 kubectl logs -f deployment/infisical-agent-injector
@@ -60,13 +60,13 @@ PLATFORM := windows/amd64
 BUILD_TARGET := windows2022  # or windows2019
 
 # Then build
-make run-dev
+make up-dev
 ```
 
 Or temporarily override:
 
 ```bash
-make run-dev PLATFORM=windows/amd64 BUILD_TARGET=windows2022
+make up-dev PLATFORM=windows/amd64 BUILD_TARGET=windows2022
 ```
 
 ### Check what's running
@@ -84,6 +84,6 @@ kubectl logs -l app.kubernetes.io/name=infisical-agent-injector --tail=50
 
 ## Cleanup
 
-When you run `make run-dev`, any previously created dev installations are automatically removed. However if you need to manually uninstall the agent injector you can do so by running `make uninstall`.
+When you run `make up-dev`, any previously created dev installations are automatically removed. However if you need to manually uninstall the agent injector you can do so by running `make uninstall`.
 
 If you want to completely purge your development setup for the agent injector, you can run `make clean`

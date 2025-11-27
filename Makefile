@@ -15,7 +15,7 @@ BUILD_TARGET := linux # linux|windows2019|windows2022
 
 
 # Default target
-run-dev: uninstall registry build push install
+up-dev: uninstall registry build push install
 
 # Create local docker registry if it doesn't exist
 registry:
