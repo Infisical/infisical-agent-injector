@@ -13,6 +13,7 @@ const (
 	AnnotationAgentStatus                 = "org.infisical.com/agent-status"
 	AnnotationCachingEnabled              = "org.infisical.com/agent-cache-enabled"
 	AnnotationRevokeCredentialsOnShutdown = "org.infisical.com/agent-revoke-on-shutdown"
+	AnnotationAgentImage                  = "org.infisical.com/agent-image"
 
 	AnnotationAgentClientMaxRetries = "org.infisical.com/agent-client-max-retries"
 	AnnotationAgentClientBaseDelay  = "org.infisical.com/agent-client-base-delay"
@@ -49,10 +50,10 @@ const (
 )
 
 const (
-	InitContainerName     = "infisical-agent-init"
-	SidecarContainerName  = "infisical-agent"
-	LinuxContainerImage   = "infisical/cli:0.43.32"               // todo(daniel): we might want to make this configurable in the future
-	WindowsContainerImage = "infisical/cli:0.43.32-windows-amd64" // note(daniel): currently only windows amd64 is supported. we throw if the user is trying to use a different architecture on windows.
+	InitContainerName            = "infisical-agent-init"
+	SidecarContainerName         = "infisical-agent"
+	DefaultLinuxContainerImage   = "infisical/cli:0.43.32"
+	DefaultWindowsContainerImage = "infisical/cli:0.43.32-windows-amd64" // note(daniel): currently only windows amd64 is supported. we throw if the user is trying to use a different architecture on windows.
 
 	ContainerAgentConfigVolumeName = "infisical-agent-config"
 
