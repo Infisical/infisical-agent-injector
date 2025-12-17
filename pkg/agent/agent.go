@@ -60,12 +60,15 @@ func NewAgent(pod *corev1.Pod, configMap *util.ConfigMap) (*Agent, error) {
 		}
 	}
 
-	agentImage := util.LinuxContainerImage
-	isWindows := false
+	agentImage := pod.Annotations[util.AnnotationAgentImage]
+	isWindows := util.IsWindowsPod(pod)
+	if agentImage == "" {
 
-	if util.IsWindowsPod(pod) {
-		agentImage = util.WindowsContainerImage
-		isWindows = true
+		if isWindows {
+			agentImage = util.DefaultWindowsContainerImage
+		} else {
+			agentImage = util.DefaultLinuxContainerImage
+		}
 	}
 
 	return &Agent{
