@@ -51,18 +51,18 @@ spec:
                           path: /health/ready
                           port: 8585
                           scheme: HTTPS
-                      failureThreshold: 2
-                      initialDelaySeconds: 5
-                      periodSeconds: 2
-                      successThreshold: 1
-                      timeoutSeconds: 5
+                      failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+                      initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+                      periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+                      successThreshold: {{ .Values.livenessProbe.successThreshold }}
+                      timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
                   readinessProbe:
                       httpGet:
                           path: /health/ready
                           port: 8585
                           scheme: HTTPS
-                      failureThreshold: 2
-                      initialDelaySeconds: 5
-                      periodSeconds: 2
-                      successThreshold: 1
-                      timeoutSeconds: 5
+                      failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+                      initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+                      periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+                      successThreshold: {{ .Values.readinessProbe.successThreshold }}
+                      timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
