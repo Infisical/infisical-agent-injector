@@ -14,6 +14,32 @@ image:
   repository: infisical/infisical-agent-injector
   tag: v0.1.7
 
+livenessProbe:
+  # If the liveness probe fails, will try X amount of times before giving up.
+  failureThreshold: 2
+  # The number of seconds to wait after the container has started before the first liveness check.
+  initialDelaySeconds: 50
+  # In seconds, how often to perform the liveness check.
+  periodSeconds: 2
+  # Amount of successful consecutive checks required before the probe is considered successful after failure. 
+  successThreshold: 1
+  # The number of seconds after which the probe times out.
+  timeoutSeconds: 5
+
+readinessProbe:
+  # If the readiness probe fails, will try X amount of times before giving up.
+  failureThreshold: 100
+  # The number of seconds to wait after the container has started before the first readiness check.
+  initialDelaySeconds: 50
+  # In seconds, how often to perform the readiness check.
+  periodSeconds: 2
+  # Amount of successful consecutive checks required before the probe is considered successful after failure. 
+  successThreshold: 1
+  # The number of seconds after which the probe times out.
+  timeoutSeconds: 5
+
+
+
 # If need be, you can run the Agent Injector itself on Windows nodes if your cluster supports it.
 # This is achieved by setting the nodeSelector to kubernetes.io/os: windows.
 
