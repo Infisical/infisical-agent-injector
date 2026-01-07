@@ -18,7 +18,7 @@ livenessProbe:
   # If the liveness probe fails, will try X amount of times before giving up.
   failureThreshold: 2
   # The number of seconds to wait after the container has started before the first liveness check.
-  initialDelaySeconds: 50
+  initialDelaySeconds: 5
   # In seconds, how often to perform the liveness check.
   periodSeconds: 2
   # Amount of successful consecutive checks required before the probe is considered successful after failure. 
@@ -28,9 +28,9 @@ livenessProbe:
 
 readinessProbe:
   # If the readiness probe fails, will try X amount of times before giving up.
-  failureThreshold: 100
+  failureThreshold: 2
   # The number of seconds to wait after the container has started before the first readiness check.
-  initialDelaySeconds: 50
+  initialDelaySeconds: 5
   # In seconds, how often to perform the readiness check.
   periodSeconds: 2
   # Amount of successful consecutive checks required before the probe is considered successful after failure. 
