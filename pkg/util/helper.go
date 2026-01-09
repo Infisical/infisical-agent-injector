@@ -314,3 +314,29 @@ func ValidateInjectMode(injectMode string) error {
 	}
 	return nil
 }
+
+func ParseStringToBool(stringValue string, defaultValue bool) (bool, error) {
+	if stringValue == "" {
+		return defaultValue, nil
+	}
+
+	if stringValue != "false" && stringValue != "true" {
+		return false, fmt.Errorf("invalid boolean value: %s", stringValue)
+	}
+
+	return stringValue == "true", nil
+}
+
+func ParseStringToInt(stringValue string, defaultValue int) (int, error) {
+
+	if stringValue == "" {
+		return defaultValue, nil
+	}
+
+	intValue, err := strconv.Atoi(stringValue)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse int: %w", err)
+	}
+
+	return intValue, nil
+}

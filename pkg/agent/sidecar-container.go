@@ -32,6 +32,11 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 	}
 	lifecycle := a.Lifecycle()
 
+	securityContext, err := a.SecurityContext()
+	if err != nil {
+		return corev1.Container{}, fmt.Errorf("failed to get security context: %w", err)
+	}
+
 	command := []string{"/bin/sh", "-ec"}
 	if a.isWindows {
 		command = []string{"pwsh.exe", "-Command"}
@@ -46,6 +51,10 @@ func (a *Agent) ContainerSidecar() (corev1.Container, error) {
 		Command:      command,
 		Args:         []string{script},
 		Env:          envVars,
+	}
+
+	if securityContext != nil {
+		newContainer.SecurityContext = securityContext
 	}
 
 	return newContainer, nil

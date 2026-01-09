@@ -15,6 +15,12 @@ const (
 	AnnotationRevokeCredentialsOnShutdown = "org.infisical.com/agent-revoke-on-shutdown"
 	AnnotationAgentImage                  = "org.infisical.com/agent-image"
 
+	AnnotationSetSecurityContext                      = "org.infisical.com/agent-set-security-context"
+	AnnotationSecurityContextRunAsUser                = "org.infisical.com/agent-security-context-run-as-user"
+	AnnotationSecurityContextRunAsGroup               = "org.infisical.com/agent-security-context-run-as-group"
+	AnnotationSecurityContextPrivileged               = "org.infisical.com/agent-security-context-privileged"
+	AnnotationSecurityContextAllowPrivilegeEscalation = "org.infisical.com/agent-security-context-allow-privilege-escalation"
+
 	AnnotationAgentClientMaxRetries = "org.infisical.com/agent-client-max-retries"
 	AnnotationAgentClientBaseDelay  = "org.infisical.com/agent-client-base-delay"
 	AnnotationAgentClientMaxDelay   = "org.infisical.com/agent-client-max-delay"

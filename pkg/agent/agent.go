@@ -12,6 +12,7 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 )
 
 type Agent struct {
@@ -459,4 +460,56 @@ func (a *Agent) ResourceRequirements() (corev1.ResourceRequirements, error) {
 	}
 
 	return resources, nil
+}
+
+func (a *Agent) SecurityContext() (*corev1.SecurityContext, error) {
+
+	setSecurityContext, err := util.ParseStringToBool(a.pod.Annotations[util.AnnotationSetSecurityContext], false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse set security context annotation: %w", err)
+	}
+
+	if !setSecurityContext {
+		return nil, nil
+	}
+
+	privileged, err := util.ParseStringToBool(a.pod.Annotations[util.AnnotationSecurityContextPrivileged], false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse security context privileged annotation: %w", err)
+	}
+
+	allowPrivilegeEscalation, err := util.ParseStringToBool(a.pod.Annotations[util.AnnotationSecurityContextAllowPrivilegeEscalation], false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse security context allow privilege escalation annotation: %w", err)
+	}
+
+	runAsUser, err := util.ParseStringToInt(a.pod.Annotations[util.AnnotationSecurityContextRunAsUser], 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse security context run as user: %w", err)
+	}
+
+	runAsGroup, err := util.ParseStringToInt(a.pod.Annotations[util.AnnotationSecurityContextRunAsGroup], 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse security context run as group: %w", err)
+	}
+
+	runAsNonRoot := true
+
+	if runAsUser == 0 || runAsGroup == 0 {
+		runAsNonRoot = false
+	}
+
+	securityContext := &corev1.SecurityContext{
+		RunAsUser:    pointer.Int64(int64(runAsUser)),
+		RunAsGroup:   pointer.Int64(int64(runAsGroup)),
+		RunAsNonRoot: pointer.Bool(runAsNonRoot),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+		Privileged:               pointer.Bool(privileged),
+		AllowPrivilegeEscalation: pointer.Bool(allowPrivilegeEscalation),
+	}
+
+	return securityContext, nil
+
 }

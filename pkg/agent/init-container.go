@@ -30,6 +30,11 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		return corev1.Container{}, fmt.Errorf("failed to get resource requirements: %w", err)
 	}
 
+	securityContext, err := a.SecurityContext()
+	if err != nil {
+		return corev1.Container{}, fmt.Errorf("failed to get security context: %w", err)
+	}
+
 	command := []string{"/bin/sh", "-c"}
 	if a.isWindows {
 		command = []string{"pwsh.exe", "-Command"}
@@ -43,6 +48,10 @@ func (a *Agent) ContainerInitSidecar() (corev1.Container, error) {
 		Command:      command,
 		Env:          envVars,
 		Args:         []string{script},
+	}
+
+	if securityContext != nil {
+		newContainer.SecurityContext = securityContext
 	}
 
 	return newContainer, nil
