@@ -473,28 +473,25 @@ func (a *Agent) SecurityContext() (*corev1.SecurityContext, error) {
 		return nil, nil
 	}
 
-	privileged, err := util.ParseStringToBool(a.pod.Annotations[util.AnnotationSecurityContextPrivileged], false)
+	readOnlyRootFilesystem, err := util.ParseStringToBool(a.pod.Annotations[util.AnnotationSecurityContextReadOnlyRootFilesystem], true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse security context privileged annotation: %w", err)
+		return nil, fmt.Errorf("failed to parse security context read only root filesystem annotation: %w", err)
 	}
 
-	allowPrivilegeEscalation, err := util.ParseStringToBool(a.pod.Annotations[util.AnnotationSecurityContextAllowPrivilegeEscalation], false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse security context allow privilege escalation annotation: %w", err)
-	}
-
-	runAsUser, err := util.ParseStringToInt(a.pod.Annotations[util.AnnotationSecurityContextRunAsUser], 0)
+	runAsUser, err := util.ParseStringToInt(a.pod.Annotations[util.AnnotationSecurityContextRunAsUser], 1000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse security context run as user: %w", err)
 	}
 
-	runAsGroup, err := util.ParseStringToInt(a.pod.Annotations[util.AnnotationSecurityContextRunAsGroup], 0)
+	runAsGroup, err := util.ParseStringToInt(a.pod.Annotations[util.AnnotationSecurityContextRunAsGroup], 2000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse security context run as group: %w", err)
 	}
 
 	runAsNonRoot := true
 
+	// if any of these are true, we run as root
+	// we default to non-root if not explicitly set
 	if runAsUser == 0 || runAsGroup == 0 {
 		runAsNonRoot = false
 	}
@@ -506,8 +503,13 @@ func (a *Agent) SecurityContext() (*corev1.SecurityContext, error) {
 		Capabilities: &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		},
-		Privileged:               pointer.Bool(privileged),
-		AllowPrivilegeEscalation: pointer.Bool(allowPrivilegeEscalation),
+		Privileged:               pointer.Bool(false),
+		AllowPrivilegeEscalation: pointer.Bool(false),
+	}
+
+	if !a.isWindows {
+		// cannot be set on windows pods
+		securityContext.ReadOnlyRootFilesystem = pointer.Bool(readOnlyRootFilesystem)
 	}
 
 	return securityContext, nil
