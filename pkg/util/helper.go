@@ -335,7 +335,11 @@ func ParseStringToInt(stringValue string, defaultValue int) (int, error) {
 
 	intValue, err := strconv.Atoi(stringValue)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse int: %w", err)
+		return 0, fmt.Errorf("failed to parse integer value: %w", err)
+	}
+
+	if intValue < 0 {
+		return 0, fmt.Errorf("invalid integer value, must be a positive number: %s", stringValue)
 	}
 
 	return intValue, nil
