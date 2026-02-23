@@ -4,4 +4,4 @@ description: A Helm chart for Infisical Kubernetes Agent Injector
 
 type: application
 version: 0.1.9
-appVersion: "0.1.9"
+appVersion: "0.1.10"
