@@ -147,6 +147,18 @@ func BuildAgentConfigFromConfigMap(configMap *ConfigMap, exitAfterAuth bool, isW
 			},
 		)
 
+	} else if configMap.Infisical.Auth.Type == AwsIamAuthType {
+
+		identityID, ok := configMap.Infisical.Auth.Config["identity-id"].(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("identity-id is required for aws-iam auth")
+		}
+
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "INFISICAL_MACHINE_IDENTITY_ID",
+			Value: identityID,
+		})
+
 	} else {
 		return nil, nil, fmt.Errorf("unsupported auth type: %s", configMap.Infisical.Auth.Type)
 	}
