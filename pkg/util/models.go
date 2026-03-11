@@ -55,16 +55,6 @@ type AgentConfig struct {
 	Cache     CacheConfig     `yaml:"cache,omitempty"`
 }
 
-type KubernetesAuthConfig struct {
-	IdentityID string `yaml:"identity-id"`
-}
-
-type LdapAuthConfig struct {
-	Username   string `yaml:"username"`
-	Password   string `yaml:"password"`
-	IdentityID string `yaml:"identity-id"`
-}
-
 type ConfigMap struct {
 	Infisical struct {
 		Address                     string `yaml:"address"`
@@ -82,11 +72,4 @@ type ConfigMap struct {
 type StartupScriptTemplateData struct {
 	ExitAfterAuth  bool
 	TimeoutSeconds int
-}
-
-type StartupScriptAuth struct {
-	Type       string
-	IdentityID string
-	Username   string
-	Password   string
 }
