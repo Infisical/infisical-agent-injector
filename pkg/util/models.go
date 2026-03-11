@@ -65,10 +65,6 @@ type LdapAuthConfig struct {
 	IdentityID string `yaml:"identity-id"`
 }
 
-type AwsIamAuthConfig struct {
-	IdentityID string `yaml:"identity-id"`
-}
-
 type ConfigMap struct {
 	Infisical struct {
 		Address                     string `yaml:"address"`
