@@ -52,6 +52,7 @@ const (
 const (
 	KubernetesAuthType = "kubernetes"
 	LdapAuthType       = "ldap-auth"
+	AwsIamAuthType     = "aws-iam"
 )
 
 const (

@@ -55,22 +55,12 @@ type AgentConfig struct {
 	Cache     CacheConfig     `yaml:"cache,omitempty"`
 }
 
-type KubernetesAuthConfig struct {
-	IdentityID string `yaml:"identity-id"`
-}
-
-type LdapAuthConfig struct {
-	Username   string `yaml:"username"`
-	Password   string `yaml:"password"`
-	IdentityID string `yaml:"identity-id"`
-}
-
 type ConfigMap struct {
 	Infisical struct {
 		Address                     string `yaml:"address"`
 		RevokeCredentialsOnShutdown bool   `yaml:"revoke-credentials-on-shutdown"`
 		Auth                        struct {
-			Type   string                 `yaml:"type"` // Only kubernetes and ldap-auth is supported for now
+			Type   string                 `yaml:"type"` // Supported types: kubernetes, ldap-auth, aws-iam
 			Config map[string]interface{} `yaml:"config"`
 		} `yaml:"auth"`
 		RetryConfig *RetryConfig `yaml:"retry-strategy,omitempty"`
@@ -82,11 +72,4 @@ type ConfigMap struct {
 type StartupScriptTemplateData struct {
 	ExitAfterAuth  bool
 	TimeoutSeconds int
-}
-
-type StartupScriptAuth struct {
-	Type       string
-	IdentityID string
-	Username   string
-	Password   string
 }
