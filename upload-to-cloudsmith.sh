@@ -20,9 +20,3 @@ for i in *.tgz; do
 done
 
 helm registry logout helm.oci.cloudsmith.io
-
-# Push to traditional Helm repository
-for i in *.tgz; do
-    [ -f "$i" ] || break
-    cloudsmith push helm --republish infisical/helm-charts "$i"
-done
