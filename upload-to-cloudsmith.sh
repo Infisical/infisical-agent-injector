@@ -5,12 +5,6 @@ cd helm
 helm dependency update
 helm package .
 
-# Push to traditional Helm repository
-for i in *.tgz; do
-    [ -f "$i" ] || break
-    cloudsmith push helm --republish infisical/helm-charts "$i"
-done
-
 # Push to OCI repository
 if [ -z "$CLOUDSMITH_API_KEY" ] || [ -z "$CLOUDSMITH_USERNAME" ]; then
     echo "Error: CLOUDSMITH_API_KEY and CLOUDSMITH_USERNAME environment variables must be set."
@@ -26,3 +20,9 @@ for i in *.tgz; do
 done
 
 helm registry logout helm.oci.cloudsmith.io
+
+# Push to traditional Helm repository
+for i in *.tgz; do
+    [ -f "$i" ] || break
+    cloudsmith push helm --republish infisical/helm-charts "$i"
+done
