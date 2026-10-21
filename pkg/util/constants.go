@@ -58,8 +58,8 @@ const (
 const (
 	InitContainerName            = "infisical-agent-init"
 	SidecarContainerName         = "infisical-agent"
-	DefaultLinuxContainerImage   = "infisical/cli:0.43.55"
-	DefaultWindowsContainerImage = "infisical/cli:0.43.55-windows-amd64" // note(daniel): currently only windows amd64 is supported. we throw if the user is trying to use a different architecture on windows.
+	DefaultLinuxContainerImage   = "infisical/cli:0.44.5"
+	DefaultWindowsContainerImage = "infisical/cli:0.44.5-windows-amd64" // note(daniel): currently only windows amd64 is supported. we throw if the user is trying to use a different architecture on windows.
 
 	ContainerAgentConfigVolumeName = "infisical-agent-config"
 
